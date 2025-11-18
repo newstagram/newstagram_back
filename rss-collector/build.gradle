@@ -1,0 +1,37 @@
+// RSS Collector - RSS 뉴스 수집 서버
+description = 'Newstagram RSS Collector'
+
+dependencies {
+    // Spring Batch for Scheduled Collection
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    testImplementation 'org.springframework.batch:spring-batch-test'
+    
+    // JPA & Database
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    
+    // Redis for Cache
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // RSS Feed Parser
+    implementation 'com.rometools:rome:2.1.0'
+    implementation 'com.rometools:rome-modules:2.1.0'
+    
+    // HTTP Client for Feign
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // WebClient for Async RSS Fetching
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    
+    // Jsoup for HTML Parsing
+    implementation 'org.jsoup:jsoup:1.17.2'
+}
+
+bootJar {
+    enabled = true
+    archiveFileName = 'rss-collector.jar'
+}
+
+jar {
+    enabled = false
+}

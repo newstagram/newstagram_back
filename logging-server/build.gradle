@@ -1,0 +1,29 @@
+// Logging Server - 로깅 및 모니터링 서버
+description = 'Newstagram Logging Server'
+
+dependencies {
+    // JPA & Database
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    
+    // Redis for Message Queue
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // Kafka (Optional - 대용량 로깅 처리)
+    // implementation 'org.springframework.kafka:spring-kafka'
+    
+    // Elasticsearch (Optional - 로그 검색)
+    // implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    
+    // Async Processing
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+}
+
+bootJar {
+    enabled = true
+    archiveFileName = 'logging-server.jar'
+}
+
+jar {
+    enabled = false
+}

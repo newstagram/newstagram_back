@@ -1,0 +1,38 @@
+# 텍스트 파일의 줄바꿈을 자동으로 변환
+* text=auto
+
+# 소스 코드 파일 - LF 유지
+*.java text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.xml text eol=lf
+*.sql text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Shell 스크립트 - LF 필수
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows 배치 파일 - CRLF 필수
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리 파일
+*.jar binary
+*.class binary
+*.war binary
+*.ear binary
+*.zip binary
+*.tar.gz binary
+*.rar binary
+*.exe binary
+*.dll binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
