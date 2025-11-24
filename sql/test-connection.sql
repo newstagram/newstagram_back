@@ -1,50 +1,49 @@
 -- Newstagram Database Initialization Script
 -- 이 파일은 Docker Compose 실행 시 자동으로 실행됩니다.
 
-USE newstagram;
-
 -- 연결 테스트용 테이블
 CREATE TABLE IF NOT EXISTS connection_test (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     message VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 -- 테스트 데이터
 INSERT INTO connection_test (message) VALUES ('Database connection successful!');
 
 -- 사용자 테이블
 CREATE TABLE IF NOT EXISTS users (
-    user_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     nickname VARCHAR(50) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Postgres automatically creates index for UNIQUE columns
+-- INDEX idx_email (email)
 
 -- 뉴스 카테고리 테이블
 CREATE TABLE IF NOT EXISTS news_categories (
-    category_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    category_id BIGSERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
-    description VARCHAR(255),
-    INDEX idx_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    description VARCHAR(255)
+);
+-- INDEX idx_name (name)
 
 -- 언론사 테이블
 CREATE TABLE IF NOT EXISTS news_sources (
-    source_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source_id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     rss_url VARCHAR(500) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_is_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_news_sources_is_active ON news_sources(is_active);
 
 -- 기사 테이블
 CREATE TABLE IF NOT EXISTS articles (
-    article_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    article_id BIGSERIAL PRIMARY KEY,
     title VARCHAR(500) NOT NULL,
     content TEXT,
     url VARCHAR(1000) NOT NULL UNIQUE,
@@ -53,27 +52,27 @@ CREATE TABLE IF NOT EXISTS articles (
     category_id BIGINT,
     thumbnail_url VARCHAR(1000),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (source_id) REFERENCES news_sources(source_id),
-    FOREIGN KEY (category_id) REFERENCES news_categories(category_id),
-    INDEX idx_published_at (published_at),
-    INDEX idx_source_id (source_id),
-    INDEX idx_category_id (category_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (category_id) REFERENCES news_categories(category_id)
+);
+CREATE INDEX IF NOT EXISTS idx_articles_published_at ON articles(published_at);
+CREATE INDEX IF NOT EXISTS idx_articles_source_id ON articles(source_id);
+CREATE INDEX IF NOT EXISTS idx_articles_category_id ON articles(category_id);
 
 -- 사용자 클릭 로그 테이블
 CREATE TABLE IF NOT EXISTS user_click_logs (
-    log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    log_id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     article_id BIGINT NOT NULL,
     clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     session_id VARCHAR(100),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
-    FOREIGN KEY (article_id) REFERENCES articles(article_id),
-    INDEX idx_user_id (user_id),
-    INDEX idx_article_id (article_id),
-    INDEX idx_clicked_at (clicked_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (article_id) REFERENCES articles(article_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_click_logs_user_id ON user_click_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_click_logs_article_id ON user_click_logs(article_id);
+CREATE INDEX IF NOT EXISTS idx_user_click_logs_clicked_at ON user_click_logs(clicked_at);
 
 -- 기본 카테고리 데이터
 INSERT INTO news_categories (name, description) VALUES
@@ -83,10 +82,10 @@ INSERT INTO news_categories (name, description) VALUES
 ('생활/문화', '생활 및 문화 관련 뉴스'),
 ('IT/과학', 'IT 및 과학 관련 뉴스'),
 ('스포츠', '스포츠 관련 뉴스')
-ON DUPLICATE KEY UPDATE description = VALUES(description);
+ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description;
 
 -- 기본 언론사 데이터 (예시)
 INSERT INTO news_sources (name, rss_url, is_active) VALUES
 ('JTBC', 'https://fs.jtbc.co.kr/RSS/newsflash.xml', TRUE),
-('KBS', 'https://www.kbs.co.kr/rss/news.xml', TRUE)
-ON DUPLICATE KEY UPDATE rss_url = VALUES(rss_url);
+('KBS', 'https://www.kbs.co.kr/rss/news.xml', TRUE);
+-- ON DUPLICATE KEY UPDATE rss_url = VALUES(rss_url);

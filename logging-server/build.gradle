@@ -4,7 +4,7 @@ description = 'Newstagram Logging Server'
 dependencies {
     // JPA & Database
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'org.postgresql:postgresql'
     
     // Redis for Message Queue
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'

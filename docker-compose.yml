@@ -1,35 +1,24 @@
 version: "3.8"
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: newstagram-mysql
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: newstagram-postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-newstagram}
-      MYSQL_USER: ${MYSQL_USER:-newstagram}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-newstagram}
+      POSTGRES_USER: ${POSTGRES_USER:-newstagram}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       TZ: Asia/Seoul
     ports:
-      - "3306:3306"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./sql:/docker-entrypoint-initdb.d
     networks:
       - newstagram-network
     healthcheck:
-      test:
-        [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-p${MYSQL_ROOT_PASSWORD:-rootpassword}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newstagram} -d ${POSTGRES_DB:-newstagram}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +28,7 @@ services:
     container_name: newstagram-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -55,7 +44,7 @@ networks:
     driver: bridge
 
 volumes:
-  mysql_data:
+  postgres_data:
     driver: local
   redis_data:
     driver: local
