@@ -2,13 +2,16 @@
 description = 'Newstagram RSS Collector'
 
 dependencies {
+    // Domain Module
+    implementation project(':newstagram-domain')
+
     // Spring Batch for Scheduled Collection
     implementation 'org.springframework.boot:spring-boot-starter-batch'
     testImplementation 'org.springframework.batch:spring-batch-test'
     
     // JPA & Database
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'org.postgresql:postgresql'
     
     // Redis for Cache
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'

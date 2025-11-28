@@ -1,35 +1,24 @@
 version: "3.8"
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: newstagram-mysql
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: newstagram-postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-newstagram}
-      MYSQL_USER: ${MYSQL_USER:-newstagram}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-newstagram}
+      POSTGRES_USER: ${POSTGRES_USER:-newstagram}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       TZ: Asia/Seoul
     ports:
-      - "3306:3306"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./sql:/docker-entrypoint-initdb.d
     networks:
       - newstagram-network
     healthcheck:
-      test:
-        [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-p${MYSQL_ROOT_PASSWORD:-rootpassword}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newstagram} -d ${POSTGRES_DB:-newstagram}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +28,7 @@ services:
     container_name: newstagram-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -50,12 +39,48 @@ services:
       timeout: 3s
       retries: 5
 
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: newstagram-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "${KAFKA_PORT:-9094}:9094"
+    environment:
+      # KRaft settings
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      # Listeners
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:${KAFKA_PORT:-9094}
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # Single Node Settings
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      # Storage
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - newstagram-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   newstagram-network:
     driver: bridge
 
 volumes:
-  mysql_data:
+  postgres_data:
     driver: local
   redis_data:
+    driver: local
+  kafka_data:
     driver: local
