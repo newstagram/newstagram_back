@@ -1,7 +1,9 @@
 package com.ssafy.newstagram.api.users.controller;
 
+import com.ssafy.newstagram.api.users.model.dto.RegisterRequestDto;
 import com.ssafy.newstagram.api.users.model.service.UserService;
 import com.ssafy.newstagram.domain.user.entity.User;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +16,7 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping
-    public ResponseEntity<?> register(@RequestBody User dto) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto dto) {
         userService.register(dto);
         return ResponseEntity.ok("회원가입 성공");
     }
