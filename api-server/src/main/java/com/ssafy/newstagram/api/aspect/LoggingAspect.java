@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -56,8 +59,61 @@ public class LoggingAspect {
     }
 
     private Long getUserIdFromSecurity() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            Object principal = authentication.getPrincipal();
+
+            if (principal instanceof Long) {
+                return (Long) principal;
+            }
+
+            if (principal instanceof String) {
+                try {
+                    return Long.parseLong((String) principal);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("Aspect에서 userId 추출 실패", e);
+        }
+
+        return null;
     }
 
     private Long findArticleIdFromArgs(ProceedingJoinPoint joinPoint) {
+        try {
+            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+            String[] paramNames = signature.getParameterNames();
+            Object[] args = joinPoint.getArgs();
+
+            if (paramNames == null || args == null) return null;
+
+            for (int i = 0; i < paramNames.length; i++) {
+                String name = paramNames[i].toLowerCase();
+
+                if (name.equals("id") || name.contains("articleid") || name.contains("newsid")) {
+                    Object value = args[i];
+                    if (value == null) continue;
+
+                    if (value instanceof Long) {
+                        return (Long) value;
+                    } else if (value instanceof Integer) {
+                        return ((Integer) value).longValue();
+                    } else if (value instanceof String) {
+                        try {
+                            return Long.parseLong((String) value);
+                        } catch (NumberFormatException e) {
+                            log.warn("ID 파라미터가 숫자가 아닙니다: {}", value);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Aspect에서 articleId 추출 실패", e);
+        }
+        return null;
     }
 }
