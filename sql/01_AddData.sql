@@ -31,20 +31,15 @@ INSERT INTO news_sources (name, homepage_url) VALUES
     ('Khan', 'https://www.khan.co.kr/help/help_rss.html');
 
 INSERT INTO rss_feeds (source_id, category_id, name, rss_url, is_active) VALUES
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'TOP'), 'Yonhaptv Top Feed', 'http://www.yonhapnewstv.co.kr/browse/feed/', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'POLITICS'), 'Yonhaptv Politics Feed', 'http://www.yonhapnewstv.co.kr/category/news/politics/feed/
-', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'ECONOMY'), 'Yonhaptv Economy Feed', 'http://www.yonhapnewstv.co.kr/category/news/economy/feed/', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'SOCIETY'), 'Yonhaptv Society Feed', 'http://www.yonhapnewstv.co.kr/category/news/society/feed/', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'LOCAL'), 'Yonhaptv Local Feed', 'http://www.yonhapnewstv.co.kr/category/news/local/feed/
-', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'WORLD'), 'Yonhaptv World Feed', 'http://www.yonhapnewstv.co.kr/category/news/international/feed/
-', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'CULTURE_LIFE'), 'Yonhaptv Culture_life Feed', 'http://www.yonhapnewstv.co.kr/category/news/culture/feed/
-', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'SPORTS'), 'Yonhaptv Sports Feed', 'http://www.yonhapnewstv.co.kr/category/news/sports/feed/', TRUE),
-    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'WEATHER'), 'Yonhaptv Weather Feed', 'http://www.yonhapnewstv.co.kr/category/news/weather/feed/
-', TRUE);
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'TOP'), 'Yonhaptv Top Feed', 'https://www.yonhapnewstv.co.kr/browse/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'POLITICS'), 'Yonhaptv Politics Feed', 'https://www.yonhapnewstv.co.kr/category/news/politics/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'ECONOMY'), 'Yonhaptv Economy Feed', 'https://www.yonhapnewstv.co.kr/category/news/economy/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'SOCIETY'), 'Yonhaptv Society Feed', 'https://www.yonhapnewstv.co.kr/category/news/society/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'LOCAL'), 'Yonhaptv Local Feed', 'https://www.yonhapnewstv.co.kr/category/news/local/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'WORLD'), 'Yonhaptv World Feed', 'https://www.yonhapnewstv.co.kr/category/news/international/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'CULTURE_LIFE'), 'Yonhaptv Culture_life Feed', 'https://www.yonhapnewstv.co.kr/category/news/culture/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'SPORTS'), 'Yonhaptv Sports Feed', 'https://www.yonhapnewstv.co.kr/category/news/sports/feed', TRUE),
+    ((SELECT id FROM news_sources WHERE name = 'Yonhaptv'), (SELECT id FROM news_categories WHERE name = 'WEATHER'), 'Yonhaptv Weather Feed', 'https://www.yonhapnewstv.co.kr/category/news/weather/feed', TRUE);
 
 -- 연합뉴스 (Yonhap)
 INSERT INTO rss_feeds (source_id, category_id, name, rss_url, is_active) VALUES
