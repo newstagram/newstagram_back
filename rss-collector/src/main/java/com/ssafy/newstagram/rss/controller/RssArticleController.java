@@ -3,6 +3,7 @@ package com.ssafy.newstagram.rss.controller;
 import com.ssafy.newstagram.rss.dto.ArticleCollectResultDto;
 import com.ssafy.newstagram.rss.service.RssArticleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,36 +14,36 @@ public class RssArticleController {
 
     private final RssArticleService rssArticleService;
 
-    /**
-     * # 전체 기사 불러오기
-     * GET /rss/getArticle
-     *  - 모든 활성 rss_feeds 기준으로 기사 수집 + DB 저장
-     */
+
+    //전체 기사 불러오기
     @GetMapping("/getArticle")
     public ResponseEntity<ArticleCollectResultDto> collectAllArticles() {
         ArticleCollectResultDto result = rssArticleService.collectAllArticles();
-        return ResponseEntity.ok(result);
+        if(result.getErrors() == null || result.getErrors().isEmpty()) {
+            return ResponseEntity.ok(result);
+        }
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(result);
     }
 
-    /**
-     * # 특정 신문사 기사 불러오기
-     * GET /rss/getArticle/{sourceId}
-     *  - news_sources.id = sourceId 인 source 의 활성 피드만 대상
-     */
+     //특정 신문사 기사 불러오기
     @GetMapping("/getArticle/{sourceId}")
     public ResponseEntity<ArticleCollectResultDto> collectArticlesBySource(
             @PathVariable("sourceId") Long sourceId) {
 
         ArticleCollectResultDto result = rssArticleService.collectArticlesBySource(sourceId);
-        return ResponseEntity.ok(result);
+        if(result.getErrors() == null || result.getErrors().isEmpty()) {
+            return ResponseEntity.ok(result);
+        }
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(result);
     }
 
-    /**
-     * # 특정 신문사 + 특정 카테고리 기사 불러오기
-     * GET /rss/getArticle/{sourceId}/{categoryId}
-     *  - rss_feeds.source_id = sourceId
-     *  - rss_feeds.category_id = categoryId
-     */
+
+
+     // 특정 신문사 + 특정 카테고리 기사 불러오기
     @GetMapping("/getArticle/{sourceId}/{categoryId}")
     public ResponseEntity<ArticleCollectResultDto> collectArticlesBySourceAndCategory(
             @PathVariable("sourceId") Long sourceId,
@@ -50,6 +51,14 @@ public class RssArticleController {
 
         ArticleCollectResultDto result =
                 rssArticleService.collectAllArticlesBySourceAndCategory(sourceId, categoryId);
-        return ResponseEntity.ok(result);
+        if(result.getErrors() == null || result.getErrors().isEmpty()) {
+            return ResponseEntity.ok(result);
+        }
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(result);
     }
+
+    // DB에서 기사 전체 불러오기(가장 최근 100개만)
+
 }

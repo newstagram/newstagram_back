@@ -12,4 +12,6 @@ public interface RssFeedMapper {
     List<RssFeed> findAllActiveFeeds();
     List<RssFeed> findActiveFeedsBySourceId(@Param("sourceId") Long sourceId);
     List<RssFeed> findActiveFeedsBySourceIdAndCategoryId(@Param("sourceId") Long sourceId, @Param("categoryId") Long categoryId);
+
+    RssFeed findById(@Param("id") Long id);
 }
