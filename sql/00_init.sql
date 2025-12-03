@@ -117,17 +117,17 @@ CREATE TABLE recommendation_logs (
 
 -- 11. 시스템 작업 로그: 백그라운드 작업 로그 (RSS 수집 등)
 CREATE TABLE system_job_logs (
-    id BIGSERIAL PRIMARY KEY,
-    job_name VARCHAR(50) NOT NULL, -- 예: 'RSS_COLLECT'
-    run_date TIMESTAMP,
-    status VARCHAR(20) NOT NULL,   -- 'SUCCESS', 'FAILURE', 'RUNNING'
-    message TEXT,
-    items_processed INTEGER DEFAULT 0,
-    retry_count INTEGER DEFAULT 0,
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP,
-    feed_id BIGINT NOT NULL REFERENCES rss_feeds(id) ON DELETE CASCADE
-);
+                                   id BIGSERIAL PRIMARY KEY,
+                                   job_name VARCHAR(50) NOT NULL, -- 예: 'RSS_COLLECT'
+                                   run_date TIMESTAMP,
+                                   status VARCHAR(20) NOT NULL,   -- 'SUCCESS', 'FAILURE', 'RUNNING'
+                                   message TEXT,
+                                   items_processed INTEGER DEFAULT 0,
+                                   retry_count INTEGER DEFAULT 0,
+                                   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                   ended_at TIMESTAMP,
+                                   feed_id BIGINT REFERENCES rss_feeds(id) ON DELETE CASCADE
+  );
 
 -- 초기 데이터 삽입
 

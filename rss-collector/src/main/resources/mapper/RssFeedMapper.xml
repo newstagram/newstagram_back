@@ -38,4 +38,20 @@
           AND category_id = #{categoryId}
     </select>
 
+    <select id="findById" parameterType="long"
+            resultType="com.ssafy.newstagram.rss.vo.RssFeed">
+        SELECT
+            id,
+            name,
+            rss_url    AS rssUrl,
+            is_active  AS isActive,
+            created_at AS createdAt,
+            updated_at AS updatedAt,
+            last_fetched_at AS lastFetchedAt,
+            category_id AS categoryId,
+            source_id   AS sourceId
+        FROM rss_feeds
+        WHERE id = #{id}
+    </select>
+
 </mapper>
