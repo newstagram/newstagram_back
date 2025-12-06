@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.newstagram.api.auth.model.dto.LoginRequestDto;
 import com.ssafy.newstagram.api.auth.model.dto.LoginResponseDto;
 import com.ssafy.newstagram.api.common.BaseResponse;
+import com.ssafy.newstagram.api.common.ErrorDetail;
 import com.ssafy.newstagram.api.users.model.dto.CustomUserDetails;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -83,6 +84,22 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
         // 로그인 실패 시 실행하는 메서드
         System.out.println("login fail");
 
-        response.setStatus(401);
+        ErrorDetail errorDetail = ErrorDetail.builder()
+                .type("LOGIN_FAILURE")
+                .message("이메일 또는 비밀번호가 올바르지 않습니다.")
+                .build();
+
+        BaseResponse<?> res = BaseResponse.error(
+            "AUTH_401",
+            "로그인 실패",
+            errorDetail
+        );
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String json = objectMapper.writeValueAsString(res);
+
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+        response.setContentType("application/json; charset=UTF-8");
+        response.getWriter().write(json);
     }
 }
