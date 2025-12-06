@@ -5,8 +5,11 @@ import com.ssafy.newstagram.api.common.ErrorDetail;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Optional;
 
 @Slf4j
 @RestControllerAdvice
@@ -26,6 +29,24 @@ public class GlobalExceptionHandler {
                 .body(BaseResponse.error("USER_400", e.getMessage(), errorDetail));
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<BaseResponse<?>> handleValidationException(MethodArgumentNotValidException e) {
+        String errorMessage = e.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+                .findFirst()
+                .orElse("유효성 검사 실패");
+
+        ErrorDetail errorDetail = ErrorDetail.builder()
+                .type("VALIDATION_ERROR")
+                .message(errorMessage)
+                .build();
+
+        return ResponseEntity
+                .badRequest()
+                .body(BaseResponse.error("USER_400", "회원가입 실패", errorDetail));
+    }
 
     // 모든 예외를 잡는 가장 상위 핸들러
     @ExceptionHandler(Exception.class)
