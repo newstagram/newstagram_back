@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -29,7 +31,9 @@ public class ArticleVectorServiceImpl implements ArticleVectorService {
     private String gmsApiKey;
     private static final String MODEL_NAME = "text-embedding-3-small";
 
-    //그냥 Json 여기서
+   //한번에 묶어 보낼 기사 개수
+    private static final int EMBEDDING_BATCH_SIZE = 128;
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
@@ -42,69 +46,136 @@ public class ArticleVectorServiceImpl implements ArticleVectorService {
 
         int successCount = 0;
         boolean hasGmsError = false;
+        long startedAt = System.currentTimeMillis();
 
-        for(Article article : targets){
-            try{
+        for (int start = 0; start < targets.size(); start += EMBEDDING_BATCH_SIZE) {
+            int end = Math.min(start + EMBEDDING_BATCH_SIZE, targets.size());
+            List<Article> batch = targets.subList(start, end);
+
+            List<Article> validArticles = new ArrayList<>();
+            List<String> inputs = new ArrayList<>();
+
+            for (Article article : batch) {
                 String inputText = buildEmbeddingInput(article);
+                if (inputText == null || inputText.isBlank()) {
+                    log.warn("[Embedding] 건너뜀(빈 제목), articleId={}", article.getId());
+                    continue;
+                }
+                validArticles.add(article);
+                inputs.add(inputText);
+            }
 
-                List<Double> embedding = callEmbeddingApi(inputText);
-                if(embedding == null || embedding.isEmpty()){
-                    log.warn("[Embedding] 임베딩 결과 없음, articleId={}", article.getId());
+            if (inputs.isEmpty()) {
+                continue;
+            }
+
+            try {
+                List<List<Double>> embeddings = callEmbeddingApiBatch(inputs);
+
+                if (embeddings.size() != validArticles.size()) {
+                    log.error("[Embedding] 응답 개수 불일치. request={}, response={}",
+                            validArticles.size(), embeddings.size());
+                    hasGmsError = true;
                     continue;
                 }
 
-                String embeddingLiteral = toPgVectorLiteral(embedding);
-                int updated = articleMapper.updateEmbedding(article.getId(), embeddingLiteral);
+                for (int i = 0; i < validArticles.size(); i++) {
+                    Article article = validArticles.get(i);
+                    List<Double> embedding = embeddings.get(i);
 
-                if(updated >0){
-                    successCount++;
-                    log.info("[Embedding] 저장 완료, articleId={}, dim={}", article.getId(), embedding.size());
-                }
-                else{
-                    log.warn("[Embedding] DB에 저장 실패, articleId={}", article.getId());
+                    if (embedding == null || embedding.isEmpty()) {
+                        log.warn("[Embedding] 임베딩 결과 없음, articleId={}", article.getId());
+                        continue;
+                    }
+
+                    String embeddingLiteral = toPgVectorLiteral(embedding);
+                    int updated = articleMapper.updateEmbedding(article.getId(), embeddingLiteral);
+
+                    if(updated > 0){
+                        successCount++;
+                        log.info("[Embedding] 저장 완료, articleId={}, dim={}", article.getId(), embedding.size());
+                    } else{
+                        log.warn("[Embedding] DB에 저장 실패, articleId={}", article.getId());
+                    }
                 }
             }catch(GmsEmbeddingException e){
                 hasGmsError = true;
-                log.error("[Embedding] GMS 호출 에러, articleId={}, message={}", article.getId(), e.getMessage(),e);
+                log.error("[Embedding] GMS 호출 에러 (batch), sourceId={}, message={}", sourceId, e.getMessage(), e);
             }catch(Exception e){
-                log.error("[Embedding] 처리중 에러, articleId={}, message={}", article.getId(), e.getMessage(),e);
+                log.error("[Embedding] 처리중 에러 (batch), sourceId={}, message={}", sourceId, e.getMessage(), e);
             }
         }
-        log.info("[Embedding] sourceId={} 전체 완료, 전체 기사 수={}, 성공 개수={}", sourceId, targets.size(), successCount);
+
+        long elapsed = System.currentTimeMillis() - startedAt;
+        log.info("[Embedding] sourceId={} 전체 완료, 전체 기사 수={}, 성공 개수={}, elapsedMs={}",
+                sourceId, targets.size(), successCount, elapsed);
+
         return new VectorizeResult(sourceId, targets.size(), successCount, hasGmsError);
     }
 
-    private String buildEmbeddingInput(Article article){
-        StringBuilder sb = new StringBuilder();
 
-        if(article.getTitle() !=null && !article.getTitle().isBlank()){
-            sb.append(article.getTitle());
+    //기사 제목 정규화
+    private String nomalizeTitle(String rawTitle){
+        if (rawTitle == null){
+            return "";
         }
-        return sb.toString();
+        String normalized = rawTitle;
+
+        //[]태그 제거
+        normalized = normalized.replaceAll("^\\s*\\[[^]]{1,15}\\]\\s*", "");
+        normalized = normalized.replaceAll("\\s*\\[[^]]{1,15}\\]\\s*", " ");
+
+        //() 제거
+        normalized = normalized.replaceAll("\\s*\\([^)]{1,15}\\)\\s*$", "");
+
+        //-~~기사 제거
+        normalized = normalized.replaceAll("\\s*-\\s*[\\p{L}\\p{N}가-힣·\\s]{1,20}$", "");
+
+        //공백 제거
+        normalized = normalized.replaceAll("\\s{2,}", " ").trim();
+
+        return normalized;
+    }
+
+    private String buildEmbeddingInput(Article article){
+        String title = article.getTitle();
+        if(title == null || title.isBlank()){
+            return "";
+        }
+        String normalized = nomalizeTitle(title);
+
+        if (!title.equals(normalized)) {
+            log.debug("[Embedding] title 정규화: '{}' -> '{}'", title, normalized);
+        }
+
+        return normalized;
     }
 
 
     private List<Double> callEmbeddingApi(String inputText) {
-        if (inputText == null || inputText.isBlank()) {
-            throw new IllegalArgumentException("Embedding input text must not be empty");
+        List<List<Double>> result = callEmbeddingApiBatch(List.of(inputText));
+        return result.get(0);
+    }
+
+
+    private List<List<Double>> callEmbeddingApiBatch(List<String> inputTexts) {
+        if (inputTexts == null || inputTexts.isEmpty()) {
+            throw new IllegalArgumentException("Embedding input texts must not be empty");
         }
 
         String url = gmsApiBaseUrl.endsWith("/")
                 ? gmsApiBaseUrl + "embeddings"
                 : gmsApiBaseUrl + "/embeddings";
 
-        // 디버깅
-        log.info("[Embedding] 실제 호출 URL={}", url);
-        log.info("[Embedding] input length={}, preview='{}'",
-                inputText.length(),
-                inputText.length() > 50 ? inputText.substring(0, 50) + "..." : inputText);
-
+        int totalLength = inputTexts.stream().mapToInt(String::length).sum();
+        log.info("[Embedding] BATCH 호출 URL={}, batchSize={}, totalCharLength={}",
+                url, inputTexts.size(), totalLength);
 
         String escapedInput;
         try {
-            escapedInput = OBJECT_MAPPER.writeValueAsString(inputText);
+            escapedInput = OBJECT_MAPPER.writeValueAsString(inputTexts);
         } catch (Exception e) {
-            throw new GmsEmbeddingException("입력 텍스트 JSON 직렬화 실패", e);
+            throw new GmsEmbeddingException("입력 텍스트 JSON 직렬화 실패 (batch)", e);
         }
 
         String rawJson = String.format(
@@ -113,7 +184,7 @@ public class ArticleVectorServiceImpl implements ArticleVectorService {
                 escapedInput
         );
 
-        log.info("[Embedding] RAW JSON={}", rawJson);
+        log.info("[Embedding] BATCH RAW JSON={}", rawJson);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -129,46 +200,43 @@ public class ArticleVectorServiceImpl implements ArticleVectorService {
             response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
         } catch (HttpClientErrorException e) {
             String errBody = e.getResponseBodyAsString();
-            log.error("[Embedding] GMS 4xx 에러. status={}, body={}", e.getStatusCode(), errBody);
-            throw new GmsEmbeddingException("GMS/OpenAI 4xx 에러: " + e.getStatusCode(), e);
+            log.error("[Embedding] GMS 4xx 에러 (batch). status={}, body={}",
+                    e.getStatusCode(), errBody);
+            throw new GmsEmbeddingException("GMS/OpenAI 4xx 에러 (batch): " + e.getStatusCode(), e);
         } catch (Exception e) {
-            throw new GmsEmbeddingException("GMS 통신 실패", e);
+            throw new GmsEmbeddingException("GMS 통신 실패 (batch)", e);
         }
 
         if (!response.getStatusCode().is2xxSuccessful()) {
-            log.error("[Embedding] API 응답 실패, response={}", response.getStatusCode());
-            throw new GmsEmbeddingException("Embedding API 실패, status=" + response.getStatusCode());
+            log.error("[Embedding] API 응답 실패 (batch), response={}", response.getStatusCode());
+            throw new GmsEmbeddingException("Embedding API 실패 (batch), status=" + response.getStatusCode());
         }
 
         String bodyStr = response.getBody();
         if (bodyStr == null || bodyStr.isBlank()) {
-            log.error("[Embedding] API 응답 body 없음");
-            throw new GmsEmbeddingException("Embedding API 응답 비어있음");
+            log.error("[Embedding] API 응답 body 없음 (batch)");
+            throw new GmsEmbeddingException("Embedding API 응답 비어있음 (batch)");
         }
 
         EmbeddingResponse body;
         try {
             body = OBJECT_MAPPER.readValue(bodyStr, EmbeddingResponse.class);
         } catch (Exception e) {
-            log.error("[Embedding] 응답 JSON 파싱 실패, body={}", bodyStr, e);
-            throw new GmsEmbeddingException("Embedding API 응답 파싱 실패", e);
+            log.error("[Embedding] 응답 JSON 파싱 실패 (batch), body={}", bodyStr, e);
+            throw new GmsEmbeddingException("Embedding API 응답 파싱 실패 (batch)", e);
         }
 
         if (body.getData() == null || body.getData().isEmpty()) {
-            log.error("[Embedding] API 응답 data 필드 없음, body={}", bodyStr);
-            throw new GmsEmbeddingException("Embedding API data 필드 없음");
+            log.error("[Embedding] API 응답 data 필드 없음 (batch), body={}", bodyStr);
+            throw new GmsEmbeddingException("Embedding API data 필드 없음 (batch)");
         }
 
-        EmbeddingResponse.EmbeddingData first = body.getData().get(0);
-        List<Double> embedding = first.getEmbedding();
-
-        if (embedding == null || embedding.isEmpty()) {
-            log.error("[Embedding] API 응답 embedding 필드 없음, body={}", bodyStr);
-            throw new GmsEmbeddingException("Embedding API embedding 필드 없음");
-        }
-
-        return embedding;
+        return body.getData().stream()
+                .sorted(Comparator.comparing(EmbeddingResponse.EmbeddingData::getIndex))
+                .map(EmbeddingResponse.EmbeddingData::getEmbedding)
+                .collect(Collectors.toList());
     }
+
 
 
     private String toPgVectorLiteral(List<Double> embedding){

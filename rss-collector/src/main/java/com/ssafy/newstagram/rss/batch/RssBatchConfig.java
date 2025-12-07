@@ -21,6 +21,7 @@ public class RssBatchConfig {
 
     private final NewsSourceItemReader newsSourceItemReader;
     private final NewsSourceItemWriter newsSourceItemWriter;
+    private final ArticleEmbeddingItemWriter articleEmbeddingItemWriter;
 
     //병렬 실행을 위한 TaskExecutor
     @Bean
@@ -34,7 +35,7 @@ public class RssBatchConfig {
         return executor;
     }
 
-    //신문사 단위로 chunk(1) 처리
+    //기사 저장
     @Bean
     public Step rssPerSourceStep(TaskExecutor rssTaskExecutor) {
         return new StepBuilder("rssPerSourceStep", jobRepository)
@@ -44,12 +45,23 @@ public class RssBatchConfig {
                 .taskExecutor(rssTaskExecutor) //멀티스레드 스탭
                 .build();
     }
+    //기사 임베딩
+    @Bean
+    public Step embeddingPerSourceStep(TaskExecutor rssTaskExecutor) {
+        return new StepBuilder("embeddingPerSourceStep", jobRepository)
+                .<Long, Long>chunk(1, transactionManager)
+                .reader(newsSourceItemReader)
+                .writer(articleEmbeddingItemWriter)
+                .taskExecutor(rssTaskExecutor)
+                .build();
+    }
 
     // 전체 신문사에 대해 위 스탭 수행
     @Bean
-    public Job rssMasterJob(Step rssPerSourceStep) {
+    public Job rssMasterJob(Step rssPerSourceStep, Step embeddingPerSourceStep) {
         return new JobBuilder("rssMasterJob", jobRepository)
                 .start(rssPerSourceStep)
+                .next(embeddingPerSourceStep)
                 .build();
     }
 }
