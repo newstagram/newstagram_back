@@ -4,6 +4,7 @@ package com.ssafy.newstagram.api.users.model.service;
 import com.ssafy.newstagram.api.auth.model.dto.LoginRequestDto;
 import com.ssafy.newstagram.api.auth.model.dto.LoginResponseDto;
 import com.ssafy.newstagram.api.users.model.dto.RegisterRequestDto;
+import com.ssafy.newstagram.api.users.model.dto.UpdateNicknameRequestDto;
 import com.ssafy.newstagram.api.users.model.dto.UserInfoDto;
 import com.ssafy.newstagram.api.users.repository.UserRepository;
 import com.ssafy.newstagram.domain.user.entity.User;
@@ -69,5 +70,17 @@ public class UserServiceImpl implements  UserService{
             .role(user.getRole())
             .preferenceEmbedding(user.getPreferenceEmbedding())
             .build();
+    }
+
+    @Override
+    public void updateNickname(String email, UpdateNicknameRequestDto dto) {
+        User user = userRepository.findByEmail(email);
+
+        if(user == null){
+            throw new IllegalArgumentException("회원을 찾을 수 없습니다.");
+        }
+
+        user.updateNickname(dto.getNewNickname());
+        userRepository.save(user);
     }
 }
