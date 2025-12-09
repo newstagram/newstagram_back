@@ -5,9 +5,11 @@ import com.ssafy.newstagram.api.auth.model.dto.LoginRequestDto;
 import com.ssafy.newstagram.api.auth.model.dto.LoginResponseDto;
 import com.ssafy.newstagram.api.users.model.dto.RegisterRequestDto;
 import com.ssafy.newstagram.api.users.model.dto.UpdateNicknameRequestDto;
+import com.ssafy.newstagram.api.users.model.dto.UpdatePasswordRequestDto;
 import com.ssafy.newstagram.api.users.model.dto.UserInfoDto;
 import com.ssafy.newstagram.api.users.repository.UserRepository;
 import com.ssafy.newstagram.domain.user.entity.User;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -88,6 +90,23 @@ public class UserServiceImpl implements  UserService{
         }
 
         return user;
+    }
+
+    @Transactional
+    @Override
+    public void updatePassword(String email, UpdatePasswordRequestDto dto) {
+        User user = userRepository.findByEmail(email);
+        if(user == null){
+            throw new IllegalArgumentException("회원을 찾을 수 없습니다.");
+        }
+
+        if(!passwordEncoder.matches(dto.getCurrentPassword(), user.getPasswordHash())){
+            throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+        }
+
+        String newEncoded = passwordEncoder.encode(dto.getNewPassword());
+
+        user.updatePasswordHash(newEncoded);
     }
 
 }
