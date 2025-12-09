@@ -24,4 +24,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Transactional
     @Query(value = "UPDATE User u SET u.refreshToken = :newRefreshToken WHERE u.email = :email")
     int updateRefreshTokenByEmail(@Param("email") String email, @Param("newRefreshToken") String newRefreshToken);
+
+    @Modifying
+    @Transactional
+    @Query("update User u set u.refreshToken = null where u.email = :email")
+    void clearRefreshToken(@Param("email") String email);
+
 }
