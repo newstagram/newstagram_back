@@ -37,6 +37,9 @@ dependencies {
     
     // Jsoup for HTML Parsing
     implementation 'org.jsoup:jsoup:1.17.2'
+
+    // java 머신러닝 라이브러리
+    implementation 'com.github.haifengl:smile-core:3.0.1'
 }
 
 bootJar {
