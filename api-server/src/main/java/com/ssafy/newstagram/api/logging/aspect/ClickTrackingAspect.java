@@ -1,4 +1,4 @@
-package com.ssafy.newstagram.api.aspect;
+package com.ssafy.newstagram.api.logging.aspect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.newstagram.api.logging.dto.UserInteractionLogsDto;
