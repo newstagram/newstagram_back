@@ -1,12 +1,16 @@
 package com.ssafy.newstagram.rss.clustering.service;
 
+import com.ssafy.newstagram.domain.recommend.entity.PeriodRecommendation;
 import com.ssafy.newstagram.rss.clustering.repository.PeriodRecommendationRepository;
 import com.ssafy.newstagram.rss.clustering.util.EmbeddingLiteralUtil;
+import com.ssafy.newstagram.rss.clustering.util.period.Period;
+import com.ssafy.newstagram.rss.clustering.util.period.PeriodCalculator;
 import com.ssafy.newstagram.rss.mapper.ArticleMapper;
 import com.ssafy.newstagram.rss.vo.Article;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,9 +24,13 @@ public class ClusteringService {
     private final PeriodRecommendationRepository periodRecommendationRepository;
     private final DbscanService dbscanService;
 
-    public void clustering() {
-        // 1) 임베딩 값 포함한 모든 기사 조회 (id + embedding)
-        List<Article> articles = articleMapper.findAllWithEmbeddingLiteral();
+    public void clusteringByPeriodEnum(Period period) {
+
+        PeriodCalculator periodCalculator = period.getCalculator();
+        LocalDateTime periodStart = periodCalculator.getStart();
+        LocalDateTime periodEnd = periodCalculator.getEnd();
+
+        List<Article> articles = getArticlesBetweenPeriods(periodStart, periodEnd);
 
         // 2) 임베딩 double[] 변환
         double[][] embeddings = new double[articles.size()][];
@@ -43,7 +51,12 @@ public class ClusteringService {
         Map<Integer, double[]> representativeVectors = findClusterRepresentatives(embeddings, clusterGroups);
 
         // 6) 클러스터 정렬 및 저장
-        saveClusterRankResult(embeddings, articles, clusterGroups, representativeVectors);
+        saveClusterRankResult(embeddings, articles,
+                clusterGroups, representativeVectors, period.name(), periodStart, periodEnd);
+    }
+
+    private List<Article> getArticlesBetweenPeriods(LocalDateTime periodStart, LocalDateTime periodEnd) {
+        return articleMapper.findArticlesByPeriod(periodStart, periodEnd);
     }
 
 
@@ -144,7 +157,10 @@ public class ClusteringService {
             double[][] embeddings,
             List<Article> articles,
             Map<Integer, List<Integer>> clusterGroups,
-            Map<Integer, double[]> representatives
+            Map<Integer, double[]> representatives,
+            String periodType,
+            LocalDateTime periodStart,
+            LocalDateTime periodEnd
     ) {
         int[] orderedClusterIds = new int[articles.size()];
         // 1) 클러스터 크기 기반 정렬 (내림차순)
@@ -162,7 +178,15 @@ public class ClusteringService {
             // ranking: 클러스터 크기 역순, score: 중심 벡터까지의 거리 순
             for (int idx : indices) {
                 double distance = cosineDistance(embeddings[idx], medoid);
-                periodRecommendationRepository.insertRankingAndScore("dbscan", orderClusterId, distance, articles.get(idx).getId());
+                periodRecommendationRepository.save(PeriodRecommendation
+                        .builder()
+                                .articleId(articles.get(idx).getId())
+                                .periodType(periodType)
+                                .ranking(orderClusterId)
+                                .score(distance)
+                                .periodStart(periodStart)
+                                .periodEnd(periodEnd)
+                        .build());
             }
             orderClusterId++;
         }
