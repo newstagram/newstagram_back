@@ -21,7 +21,7 @@ public class QuartzConfig {
     @Bean
     public Trigger rssJobTrigger(JobDetail rssJobDetail){
         CronScheduleBuilder scheduleBuilder = CronScheduleBuilder
-                .cronSchedule("0 0 0,12 * * ?")
+                .cronSchedule("0 0 0,6,12,18 * * ?")
                 .inTimeZone(java.util.TimeZone.getTimeZone("Asia/Seoul"));
 
         return TriggerBuilder.newTrigger()
@@ -30,5 +30,4 @@ public class QuartzConfig {
                 .withSchedule(scheduleBuilder)
                 .build();
     }
-
 }
