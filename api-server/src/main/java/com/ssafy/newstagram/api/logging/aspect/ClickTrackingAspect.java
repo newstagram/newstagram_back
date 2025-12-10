@@ -48,13 +48,13 @@ public class ClickTrackingAspect {
 
         // 로그 DTO 빌드
         UserInteractionLogsDto logDto = UserInteractionLogsDto.builder()
+                .userId(userId)
+                .articleId(articledId)
                 .interactionType("CLICK")
-                .createdAt(LocalDateTime.now())
                 .sessionId(request.getSession().getId())
                 .userAgent(request.getHeader("User-Agent"))
                 .ipAddress(request.getRemoteAddr())
-                .userId(userId)
-                .articleId(articledId)
+                .createdAt(LocalDateTime.now())
                 .build();
 
         // DTO -> JSON 변환 후 Kafka로 Message 전송
