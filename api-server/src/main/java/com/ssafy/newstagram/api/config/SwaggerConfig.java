@@ -37,4 +37,13 @@ public class SwaggerConfig {
                 .pathsToMatch(paths)
                 .build();
     }
+
+    @Bean
+    GroupedOpenApi loggingOpenApi(){
+        String[] paths = {"/kafka/logging/**"};
+        return GroupedOpenApi.builder()
+                .group("Kafka Test API (개발용)")
+                .pathsToMatch(paths)
+                .build();
+    }
 }
