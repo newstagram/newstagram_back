@@ -1,4 +1,4 @@
-package com.ssafy.newstagram.rss.clustering.util.period;
+package com.ssafy.newstagram.domain.util.period;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;

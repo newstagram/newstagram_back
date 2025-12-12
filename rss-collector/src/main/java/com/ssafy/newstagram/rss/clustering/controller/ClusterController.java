@@ -1,8 +1,8 @@
 package com.ssafy.newstagram.rss.clustering.controller;
 
+import com.ssafy.newstagram.domain.util.period.Period;
+import com.ssafy.newstagram.domain.util.period.PeriodCalculator;
 import com.ssafy.newstagram.rss.clustering.service.ClusteringService;
-import com.ssafy.newstagram.rss.clustering.util.period.Period;
-import com.ssafy.newstagram.rss.clustering.util.period.PeriodCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
