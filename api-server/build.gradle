@@ -5,6 +5,8 @@ dependencies {
     // Domain Module
     implementation project(':newstagram-domain')
 
+
+
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
     
@@ -26,12 +28,21 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // OAuth2
+    implementation 'org.springframework.security:spring-security-oauth2-client'
     
     // Swagger/OpenAPI
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
     
     // Test
     testImplementation 'org.springframework.security:spring-security-test'
+
+    // Lombok
+    implementation 'org.projectlombok:lombok:1.18.42'
+
+    // Komoran (Korean Morphological Analyzer)
+    implementation 'com.github.shin285:KOMORAN:3.3.9'
 }
 
 bootJar {

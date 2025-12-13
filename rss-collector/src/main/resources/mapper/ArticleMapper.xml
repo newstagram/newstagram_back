@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssafy.newstagram.rss.mapper.ArticleMapper">
+
+    <insert id="insertIgnoreOnConflict" parameterType="com.ssafy.newstagram.rss.vo.Article">
+        INSERT INTO articles
+        (title, content, description, url, thumbnail_url,
+         author, published_at, feed_id, category_id, sources_id, created_at, updated_at)
+        VALUES
+            (#{title}, #{content}, #{description}, #{url}, #{thumbnailUrl},
+             #{author}, #{publishedAt}, #{feedId}, #{categoryId}, #{sourcesId}, NOW(), NOW())
+            ON CONFLICT (url) DO NOTHING
+    </insert>
+
+    <select id="findArticlesWithoutEmbeddingBySource"
+            parameterType="long"
+            resultType="com.ssafy.newstagram.rss.vo.Article">
+        SELECT
+            id,
+            title,
+            content,
+            description,
+            url,
+            thumbnail_url AS thumbnailUrl,
+            author,
+            published_at AS publishedAt,
+            created_at AS createdAt,
+            updated_at AS updatedAt,
+            feed_id AS feedId,
+            category_id AS categoryId,
+            sources_id AS sourcesId
+        FROM articles
+        WHERE embedding IS NULL
+          AND sources_id = #{sourceId}
+        ORDER BY id ASC
+    </select>
+
+    <update id="updateEmbedding">
+        UPDATE articles
+        SET embedding = #{embedding,jdbcType=OTHER}::vector,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+
+    <!-- embedding literal 조회 -->
+    <select id="findEmbeddingLiteralById" resultType="string">
+        SELECT embedding::text
+        FROM articles
+        WHERE id = #{id}
+    </select>
+
+    <!-- 모든 기사 + embedding literal 조회 -->
+    <select id="findAllWithEmbeddingLiteral" resultType="com.ssafy.newstagram.rss.vo.Article">
+        SELECT
+        id,
+        title,
+        content,
+        description,
+        url,
+        thumbnail_url AS thumbnailUrl,
+        author,
+        published_at AS publishedAt,
+        created_at AS createdAt,
+        updated_at AS updatedAt,
+        feed_id AS feedId,
+        category_id AS categoryId,
+        sources_id AS sourcesId
+        FROM articles
+        WHERE embedding IS NOT NULL
+        ORDER BY id ASC
+    </select>
+
+    <!-- 시작 시간, 끝 시간으로 기사 조회 -->
+    <select id="findArticlesByPeriod" resultType="com.ssafy.newstagram.rss.vo.Article">
+        SELECT
+        id,
+        title,
+        content,
+        description,
+        url,
+        thumbnail_url AS thumbnailUrl,
+        author,
+        published_at AS publishedAt,
+        created_at AS createdAt,
+        updated_at AS updatedAt,
+        feed_id AS feedId,
+        category_id AS categoryId,
+        sources_id AS sourcesId
+        from articles
+        WHERE published_at BETWEEN #{startPeriod}
+        AND #{endPeriod}
+        AND embedding IS NOT NULL
+        ORDER BY id ASC;
+    </select>
+</mapper>

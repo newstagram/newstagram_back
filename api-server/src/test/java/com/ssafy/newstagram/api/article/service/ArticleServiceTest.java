@@ -3,17 +3,23 @@ package com.ssafy.newstagram.api.article.service;
 import com.ssafy.newstagram.api.article.dto.ArticleDto;
 import com.ssafy.newstagram.api.article.repository.ArticleRepository;
 import com.ssafy.newstagram.domain.news.entity.Article;
+import com.ssafy.newstagram.domain.news.entity.NewsCategory;
+import com.ssafy.newstagram.domain.news.entity.NewsSource;
+import com.ssafy.newstagram.domain.news.entity.RssFeed;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@Transactional
 public class ArticleServiceTest {
 
     @Autowired
@@ -22,10 +28,33 @@ public class ArticleServiceTest {
     private RedisTemplate<String, Object> redisTemplate;
     @Autowired
     private ArticleService articleService;
+    @Autowired
+    private EntityManager em;
 
+    private Long savedArticleId;
 
     @BeforeEach
     void init() {
+        NewsCategory category = em.createQuery("select c from NewsCategory c", NewsCategory.class)
+                .setMaxResults(1).getResultList().stream().findFirst().orElseThrow();
+        NewsSource source = em.createQuery("select s from NewsSource s", NewsSource.class)
+                .setMaxResults(1).getResultList().stream().findFirst().orElseThrow();
+        RssFeed feed = em.createQuery("select f from RssFeed f", RssFeed.class)
+                .setMaxResults(1).getResultList().stream().findFirst().orElseThrow();
+
+        Article article = Article.builder()
+                .title("Test Article")
+                .content("Test Content")
+                .description("Test Description")
+                .url("http://test.com/" + System.currentTimeMillis())
+                .publishedAt(LocalDateTime.now())
+                .category(category)
+                .source(source)
+                .feed(feed)
+                .build();
+
+        articleRepository.save(article);
+        savedArticleId = article.getId();
     }
 
     @Test
@@ -53,23 +82,19 @@ public class ArticleServiceTest {
 
     @Test
     void cacheMiss() {
-        Article jpaResult = articleRepository.findById(1L).orElseThrow();
+        Article jpaResult = articleRepository.findById(savedArticleId).orElseThrow();
 
-        redisTemplate.delete("article:1");
-        ArticleDto result = (ArticleDto) redisTemplate.opsForValue().get("article:1");
+        redisTemplate.delete("article:" + savedArticleId);
+        ArticleDto result = (ArticleDto) redisTemplate.opsForValue().get("article:" + savedArticleId);
         assertNull(result);
 
-        ArticleDto serviceResult = articleService.getArticleDto(1L);
+        ArticleDto serviceResult = articleService.getArticleDto(savedArticleId);
         assertNotNull(serviceResult);
         assertEquals(jpaResult.getId(), serviceResult.getId());
 
-        ArticleDto afterMissResult = (ArticleDto) redisTemplate.opsForValue().get("article:1");
+        ArticleDto afterMissResult = (ArticleDto) redisTemplate.opsForValue().get("article:" + savedArticleId);
         assertNotNull(afterMissResult);
         assertEquals(jpaResult.getId(), afterMissResult.getId());
 
     }
-
-
-
-
 }

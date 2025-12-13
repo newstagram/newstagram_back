@@ -1,8 +1,6 @@
 package com.ssafy.newstagram.api.article.dto;
 
-import com.ssafy.newstagram.domain.news.entity.Article;
-import com.ssafy.newstagram.domain.news.entity.NewsCategory;
-import jakarta.persistence.Column;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import lombok.AllArgsConstructor;
@@ -10,9 +8,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
-
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
 
 @Getter
 @Builder
@@ -29,9 +24,8 @@ public class ArticleDto {
     private String url;
     private String thumbnailUrl;
     private String author;
-//    private LocalDateTime publishedAt;
-//    private LocalDateTime createAt;
-//    private LocalDateTime updateAt;
-//    private NewsCategory category;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+    private java.time.LocalDateTime publishedAt;
 
 }
