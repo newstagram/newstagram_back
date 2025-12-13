@@ -1,4 +1,4 @@
-package com.ssafy.newstagram.rss.clustering.util.period;
+package com.ssafy.newstagram.domain.util.period;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,5 +15,15 @@ public class DailyPeriodCalculator implements PeriodCalculator {
     public LocalDateTime getEnd() {
         LocalDate today = LocalDate.now();
         return today.atStartOfDay();
+    }
+
+    @Override
+    public LocalDateTime getBeforeStart() {
+        return getStart().minusDays(1);
+    }
+
+    @Override
+    public LocalDateTime getBeforeEnd() {
+        return getEnd().minusDays(1);
     }
 }

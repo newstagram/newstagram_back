@@ -1,4 +1,4 @@
-package com.ssafy.newstagram.rss.clustering.util.period;
+package com.ssafy.newstagram.domain.util.period;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -22,5 +22,15 @@ public class WeeklyPeriodCalculator implements PeriodCalculator {
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
 
         return thisWeekMonday.atStartOfDay();
+    }
+
+    @Override
+    public LocalDateTime getBeforeStart() {
+        return getStart().minusWeeks(1);
+    }
+
+    @Override
+    public LocalDateTime getBeforeEnd() {
+        return getEnd().minusWeeks(1);
     }
 }

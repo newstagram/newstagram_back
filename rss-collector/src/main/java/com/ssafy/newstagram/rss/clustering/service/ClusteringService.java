@@ -1,13 +1,14 @@
 package com.ssafy.newstagram.rss.clustering.service;
 
 import com.ssafy.newstagram.domain.recommend.entity.PeriodRecommendation;
+import com.ssafy.newstagram.domain.util.period.Period;
+import com.ssafy.newstagram.domain.util.period.PeriodCalculator;
 import com.ssafy.newstagram.rss.clustering.repository.PeriodRecommendationRepository;
 import com.ssafy.newstagram.rss.clustering.util.EmbeddingLiteralUtil;
-import com.ssafy.newstagram.rss.clustering.util.period.Period;
-import com.ssafy.newstagram.rss.clustering.util.period.PeriodCalculator;
 import com.ssafy.newstagram.rss.mapper.ArticleMapper;
 import com.ssafy.newstagram.rss.vo.Article;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -16,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ClusteringService {
