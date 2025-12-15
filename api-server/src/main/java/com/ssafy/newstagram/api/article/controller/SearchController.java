@@ -31,14 +31,14 @@ public class SearchController {
         
         String query = request.getQuery();
         Integer limit = request.getLimit();
+        Integer page = request.getPage();
         
-        if (limit == null) {
-            limit = 10; // Default limit
-        }
+        if (limit == null) limit = 10;
+        if (page == null) page = 0;
 
         Long userId = userDetails.getUserId();
 
-        List<ArticleDto> results = searchService.searchArticles(userId, query, limit);
+        List<ArticleDto> results = searchService.searchArticles(userId, query, limit, page);
         return ResponseEntity.ok(results);
     }
 
@@ -48,13 +48,14 @@ public class SearchController {
         
         String query = request.getQuery();
         Integer limit = request.getLimit();
+        Integer page = request.getPage();
         
-        if (limit == null) {
-            limit = 10; // Default limit
-        }
+        if (limit == null) limit = 10;
+        if (page == null) page = 0;
 
         // Skip saving history and directly search
-        List<ArticleDto> results = searchService.getCachedSearchResults(query, limit);
+        // Test search uses strict threshold (0.8) to limit results
+        List<ArticleDto> results = searchService.getCachedSearchResults(query, limit, page, 0.80);
         return ResponseEntity.ok(results);
     }
 
@@ -95,9 +96,12 @@ public class SearchController {
 
     @Operation(summary = "추천 기사 조회", description = "사용자 선호도를 기반으로 추천 기사를 조회합니다.")
     @GetMapping("/preference")
-    public ResponseEntity<List<ArticleDto>> getRecommendedArticles(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<List<ArticleDto>> getRecommendedArticles(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int limit) {
         Long userId = userDetails.getUserId();
-        List<ArticleDto> results = searchService.getRecommendedArticles(userId);
+        List<ArticleDto> results = searchService.getRecommendedArticles(userId, page, limit);
         return ResponseEntity.ok(results);
     }
 }
