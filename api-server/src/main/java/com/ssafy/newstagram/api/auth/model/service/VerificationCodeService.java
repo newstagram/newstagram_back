@@ -6,6 +6,6 @@ import com.ssafy.newstagram.api.auth.model.dto.EmailFindVerifyRequestDto;
 public interface VerificationCodeService {
     void requestVerificationCode(EmailFindRequestDto dto, long expirationMs);
 
-    boolean verify(EmailFindVerifyRequestDto dto);
+    String verifyAndGetEmail(EmailFindVerifyRequestDto dto);
 
 }

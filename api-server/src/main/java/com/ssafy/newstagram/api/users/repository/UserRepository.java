@@ -29,5 +29,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     String findPreferenceEmbeddingAsString(@Param("userId") Long userId);
 
     User findByLoginTypeAndProviderId(String loginType, String providerId);
-    
+
+    @Query(
+            value = "SELECT u.id FROM users u WHERE u.phone_number = :phoneNumber",
+            nativeQuery = true
+    )
+    Optional<Long> findIdByPhoneNumber(@Param("phoneNumber") String phoneNumber);
 }

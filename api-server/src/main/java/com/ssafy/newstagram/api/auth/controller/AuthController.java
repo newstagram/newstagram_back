@@ -226,20 +226,19 @@ public class AuthController {
         );
     }
 
-//    @PostMapping("/email/find/verify")
-//    public ResponseEntity<?> verifyEmailFind(
-//            @Valid @RequestBody EmailFindVerifyRequestDto dto
-//    ) {
-//
-//        String email = "";
-//        return ResponseEntity.status(HttpStatus.OK).body(
-//                BaseResponse.success(
-//                        "AUTH_200",
-//                        "이메일 찾기 성공",
-//                        Map.of(
-//                                "email", email
-//                        )
-//                )
-//        );
-//    }
+    @PostMapping("/email/find/verify")
+    public ResponseEntity<?> verifyEmailFind(
+            @Valid @RequestBody EmailFindVerifyRequestDto dto
+    ) {
+        String email = verificationCodeService.verifyAndGetEmail(dto);
+        return ResponseEntity.status(HttpStatus.OK).body(
+                BaseResponse.success(
+                        "AUTH_200",
+                        "이메일 찾기 성공",
+                        Map.of(
+                                "email", email
+                        )
+                )
+        );
+    }
 }
