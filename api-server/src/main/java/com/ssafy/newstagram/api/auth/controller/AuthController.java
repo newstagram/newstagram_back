@@ -208,7 +208,24 @@ public class AuthController {
     }
 
     @PostMapping("/email/find/request")
+    @Operation(
+            summary = "이메일 찾기 인증번호 요청",
+            description = "휴대폰 번호를 입력받아 이메일 찾기용 인증번호를 SMS로 전송합니다.\n\n" +
+                    "- 가입된 휴대폰 번호가 존재하는 경우에만 인증번호가 전송됩니다.\n" +
+                    "- 가입된 휴대폰 번호가 존재하지 않는 경우에는, 인증번호는 전송되지 않지만 보안을 위하여 동일한 응답을 보냅니다.\n" +
+                    "- 인증번호의 유효 시간은 5분입니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "이메일 찾기 요청 성공"
+            )
+    })
     public ResponseEntity<?> requestEmailFind(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "이메일 찾기 요청 정보",
+                    required = true
+            )
             @Valid @RequestBody EmailFindRequestDto dto
     ) {
         final long expirationMs = 300000;
@@ -227,7 +244,24 @@ public class AuthController {
     }
 
     @PostMapping("/email/find/verify")
+    @Operation(
+            summary = "이메일 찾기 인증번호 검증",
+            description = "휴대폰 번호와 인증번호를 검증하여 해당 사용자의 이메일을 반환합니다.\n\n" +
+                    "- 인증 성공 시 이메일이 반환됩니다.\n" +
+                    "- 인증번호가 틀리거나 만료된 경우 에러가 발생합니다.\n" +
+                    "- 하나의 인증번호에 대하여, 최대 5번의 요청이 가능하고 초과 시에는 해당 인증번호를 만료시킵니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "이메일 찾기 성공"
+            )
+    })
     public ResponseEntity<?> verifyEmailFind(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "이메일 찾기 인증 요청 정보",
+                    required = true
+            )
             @Valid @RequestBody EmailFindVerifyRequestDto dto
     ) {
         String email = verificationCodeService.verifyAndGetEmail(dto);
