@@ -1,14 +1,11 @@
 package com.ssafy.newstagram.api.auth.controller;
 
 import com.ssafy.newstagram.api.auth.jwt.JWTUtil;
-import com.ssafy.newstagram.api.auth.model.dto.LoginRequestDto;
-import com.ssafy.newstagram.api.auth.model.dto.LoginResponseDto;
-import com.ssafy.newstagram.api.auth.model.dto.PasswordResetRequestDto;
-import com.ssafy.newstagram.api.auth.model.dto.PasswordResetRequestRequestDto;
+import com.ssafy.newstagram.api.auth.model.dto.*;
 import com.ssafy.newstagram.api.auth.model.service.AuthService;
 import com.ssafy.newstagram.api.auth.model.service.RefreshTokenService;
+import com.ssafy.newstagram.api.auth.model.service.VerificationCodeService;
 import com.ssafy.newstagram.api.common.BaseResponse;
-import com.ssafy.newstagram.api.auth.model.dto.RefreshTokenRequestDto;
 import com.ssafy.newstagram.api.users.model.dto.CustomUserDetails;
 import com.ssafy.newstagram.api.users.model.service.UserService;
 import com.ssafy.newstagram.domain.user.entity.User;
@@ -19,13 +16,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.IOException;
 
 import java.util.Map;
 
@@ -37,6 +33,7 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthService authService;
+    private final VerificationCodeService verificationCodeService;
     private final RefreshTokenService refreshTokenService;
     private final JWTUtil jwtUtil;
 
@@ -206,6 +203,41 @@ public class AuthController {
                 BaseResponse.successNoData(
                         "AUTH_200",
                         "비밀번호 재설정 성공"
+                )
+        );
+    }
+
+    @PostMapping("/email/find/request")
+    public ResponseEntity<?> requestEmailFind(
+            @Valid @RequestBody EmailFindRequestDto dto
+    ) {
+        final long expirationMs = 300000;
+        verificationCodeService.requestVerificationCode(dto, expirationMs);
+
+        return ResponseEntity.status(HttpStatus.OK).body(
+                BaseResponse.success(
+                        "AUTH_200",
+                        "이메일 찾기 요청 성공",
+                        Map.of(
+                                "message", dto.getPhoneNumber() + "로 인증번호가 전송되었습니다.",
+                                "expiresIn", expirationMs / 1000
+                        )
+                )
+        );
+    }
+
+    @PostMapping("/email/find/verify")
+    public ResponseEntity<?> verifyEmailFind(
+            @Valid @RequestBody EmailFindVerifyRequestDto dto
+    ) {
+        String email = verificationCodeService.verifyAndGetEmail(dto);
+        return ResponseEntity.status(HttpStatus.OK).body(
+                BaseResponse.success(
+                        "AUTH_200",
+                        "이메일 찾기 성공",
+                        Map.of(
+                                "email", email
+                        )
                 )
         );
     }

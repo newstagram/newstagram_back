@@ -10,4 +10,7 @@ public class SearchRequest {
 
     @Schema(description = "검색 결과 개수 제한", example = "10", defaultValue = "10")
     private Integer limit;
+
+    @Schema(description = "페이지 번호 (0부터 시작)", example = "0", defaultValue = "0")
+    private Integer page;
 }

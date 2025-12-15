@@ -17,11 +17,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = "SELECT COUNT(*) > 0 FROM users WHERE email = :email", nativeQuery = true)
     boolean existsByEmailIncludeDeleted(@Param("email") String email);
 
-    @Query(value = "SELECT u.id, u.email, u.password_hash, u.nickname, u.login_type, u.provider_id, u.role, u.refresh_token, u.created_at, u.updated_at, NULL as preference_embedding FROM users u WHERE u.email = :email", nativeQuery = true)
+    @Query(value = "SELECT u.id, u.phone_number, u.email, u.password_hash, u.nickname, u.login_type, u.provider_id, u.role, u.refresh_token, u.created_at, u.updated_at, NULL as preference_embedding FROM users u WHERE u.email = :email", nativeQuery = true)
     Optional<User> findByEmail(@Param("email") String email);
 
     @Override
-    @Query(value = "SELECT u.id, u.email, u.password_hash, u.nickname, u.login_type, u.provider_id, u.role, u.refresh_token, u.created_at, u.updated_at, NULL as preference_embedding FROM users u WHERE u.id = :id", nativeQuery = true)
+    @Query(value = "SELECT u.id, u.phone_number, u.email, u.password_hash, u.nickname, u.login_type, u.provider_id, u.role, u.refresh_token, u.created_at, u.updated_at, NULL as preference_embedding FROM users u WHERE u.id = :id", nativeQuery = true)
     @NonNull
     Optional<User> findById(@NonNull @Param("id") Long id);
 
@@ -30,4 +30,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     User findByLoginTypeAndProviderId(String loginType, String providerId);
 
+    @Query(
+            value = "SELECT u.id FROM users u WHERE u.phone_number = :phoneNumber",
+            nativeQuery = true
+    )
+    Optional<Long> findIdByPhoneNumber(@Param("phoneNumber") String phoneNumber);
 }
