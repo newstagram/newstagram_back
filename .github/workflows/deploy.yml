@@ -149,6 +149,8 @@ jobs:
               exit 1
             else
               echo "Deployment successful."
+              # 6. 미사용 이미지 정리 (Dangling images)
+              docker image prune -f
             fi
 
   # 3. CD: API Server 배포
@@ -305,6 +307,8 @@ jobs:
               exit 1
             else
               echo "Deployment successful."
+              # 6. 미사용 이미지 정리 (Dangling images)
+              docker image prune -f
             fi
 
   # 4. CD: Logging Server 배포
@@ -419,4 +423,6 @@ jobs:
               exit 1
             else
               echo "Deployment successful."
+              # 6. 미사용 이미지 정리 (Dangling images)
+              docker image prune -f
             fi
