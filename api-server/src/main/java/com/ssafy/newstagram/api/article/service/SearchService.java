@@ -60,17 +60,18 @@ public class SearchService {
     private static final double STEP_DISTANCE_THRESHOLD = 0.05;
 
     @Transactional
-    public List<ArticleDto> searchArticles(Long userId, String query, int limit) {
+    public List<ArticleDto> searchArticles(Long userId, String query, int limit, int page) {
         // 1. Save Search History
         saveSearchHistory(userId, query);
 
         // 2. Perform Search (Cached)
-        return getCachedSearchResults(query, limit);
+        // Authenticated search uses strict threshold (0.8) to limit results to relevant ones
+        return getCachedSearchResults(query, limit, page, 0.80);
     }
 
-    @Cacheable(value = "search_results", key = "#query")
-    public List<ArticleDto> getCachedSearchResults(String query, int limit) {
-        log.info("[Search] Original Query: {}", query);
+    @Cacheable(value = "search_results", key = "#query + '-' + #page")
+    public List<ArticleDto> getCachedSearchResults(String query, int limit, int page, double threshold) {
+        log.info("[Search] Original Query: {}, Page: {}", query, page);
 
         // 1. Try Local Analysis (Rule-based)
         IntentAnalysisResponse intent = analyzeIntentLocal(query);
@@ -110,11 +111,12 @@ public class SearchService {
         // Instead of looping DB queries, fetch a larger candidate pool once.
         // Since results are ordered by distance, the top results are the best matches.
         int fetchLimit = limit * 10; // Fetch plenty of candidates to handle filtering
+        int offset = page * limit;
         
-        log.info("[Search] Searching once with threshold: {}, fetchLimit: {}", MAX_DISTANCE_THRESHOLD, fetchLimit);
+        log.info("[Search] Searching once with threshold: {}, fetchLimit: {}, offset: {}", threshold, fetchLimit, offset);
         
         List<Article> candidates = articleRepository.findByEmbeddingSimilarityWithFilters(
-                embeddingString, fetchLimit, categoryId, startDate, MAX_DISTANCE_THRESHOLD);
+                embeddingString, fetchLimit, offset, categoryId, startDate, threshold);
 
         List<Article> articles = new ArrayList<>();
 
@@ -267,7 +269,9 @@ public class SearchService {
                word.equals("에서") || word.equals("로") || word.equals("으로") || word.equals("와") || 
                word.equals("과") || word.equals("도") || word.equals("만") || word.equals("나") || 
                word.equals("이나") || word.equals("부터") || word.equals("까지") || word.equals("필요");
-    }    private String matchCategory(String word) {
+    }    
+    
+    private String matchCategory(String word) {
         // 1. TOP (속보, 헤드라인)
         if (word.equals("속보") || word.equals("헤드라인") || word.equals("주요")) return "TOP";
         
@@ -431,7 +435,7 @@ public class SearchService {
                 .build();
     }
 
-    public List<ArticleDto> getRecommendedArticles(Long userId) {
+    public List<ArticleDto> getRecommendedArticles(Long userId, int page, int limit) {
         // Use native query to fetch embedding as string to avoid Hibernate mapping issues
         String embeddingStr = userRepository.findPreferenceEmbeddingAsString(userId);
         
@@ -441,11 +445,11 @@ public class SearchService {
 
         // Fix time range to 7 days
         LocalDateTime startDate = LocalDateTime.now().minusDays(7);
+        int offset = page * limit;
 
-        // embeddingStr from Postgres cast(vector as varchar) is like "[0.1,0.2,...]"
-        // We can pass this directly to the repository query
+        // Use a relaxed threshold (2.0) for recommendations to allow infinite scrolling
         List<Article> articles = articleRepository.findByEmbeddingSimilarityWithFilters(
-                embeddingStr, 10, null, startDate, MAX_DISTANCE_THRESHOLD);
+                embeddingStr, limit, offset, null, startDate, 2.0);
 
         return articles.stream()
                 .map(this::convertToDto)
