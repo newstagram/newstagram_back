@@ -149,6 +149,8 @@ jobs:
               exit 1
             else
               echo "Deployment successful."
+              # 6. 미사용 이미지 정리 (Dangling images)
+              docker image prune -f
             fi
 
   # 3. CD: API Server 배포
@@ -187,10 +189,32 @@ jobs:
 
       - name: Deploy to EC2 (API Server)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_USERNAME: ${{ secrets.RDS_USERNAME }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+          KAFKA_API_KEY: ${{ secrets.KAFKA_API_KEY }}
+          KAFKA_API_SECRET: ${{ secrets.KAFKA_API_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GMS_SECRET: ${{ secrets.GMS_SECRET }}
+          GMS_BASE_URL: ${{ secrets.GMS_BASE_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+          SOLAPI_KEY: ${{ secrets.SOLAPI_KEY }}
+          SOLAPI_SECRET: ${{ secrets.SOLAPI_SECRET }}
+          SOLAPI_FROM_NUMBER: ${{ secrets.SOLAPI_FROM_NUMBER }}
         with:
           host: ${{ secrets.EC2_HOST_API }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: RDS_ENDPOINT,RDS_USERNAME,RDS_PASSWORD,REDIS_HOST,REDIS_PORT,KAFKA_BOOTSTRAP_SERVERS,KAFKA_API_KEY,KAFKA_API_SECRET,JWT_SECRET,GMS_SECRET,GMS_BASE_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_REDIRECT_URI,GMAIL_USERNAME,GMAIL_APP_PASSWORD,BASE_URL,SOLAPI_KEY,SOLAPI_SECRET,SOLAPI_FROM_NUMBER
           script: |
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
 
@@ -216,20 +240,26 @@ jobs:
               -v /home/ec2-user/logs/api-server:/var/log/newstagram \
               -e LOGGING_FILE_NAME=/var/log/newstagram/application.log \
               -e SPRING_PROFILES_ACTIVE=prod \
-              -e RDS_ENDPOINT="${{ secrets.RDS_ENDPOINT }}" \
-              -e RDS_USERNAME="${{ secrets.RDS_USERNAME }}" \
-              -e RDS_PASSWORD="${{ secrets.RDS_PASSWORD }}" \
-              -e REDIS_HOST="${{ secrets.REDIS_HOST }}" \
-              -e REDIS_PORT="${{ secrets.REDIS_PORT }}" \
-              -e KAFKA_BOOTSTRAP_SERVERS="${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}" \
-              -e KAFKA_API_KEY="${{ secrets.KAFKA_API_KEY }}" \
-              -e KAFKA_API_SECRET="${{ secrets.KAFKA_API_SECRET }}" \
-              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              -e GMS_SECRET="${{ secrets.GMS_SECRET }}" \
-              -e GMS_BASE_URL="${{ secrets.GMS_BASE_URL }}" \
-              -e GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
-              -e GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-              -e GOOGLE_REDIRECT_URI="${{ secrets.GOOGLE_REDIRECT_URI }}" \
+              -e RDS_ENDPOINT="$RDS_ENDPOINT" \
+              -e RDS_USERNAME="$RDS_USERNAME" \
+              -e RDS_PASSWORD="$RDS_PASSWORD" \
+              -e REDIS_HOST="$REDIS_HOST" \
+              -e REDIS_PORT="$REDIS_PORT" \
+              -e KAFKA_BOOTSTRAP_SERVERS="$KAFKA_BOOTSTRAP_SERVERS" \
+              -e KAFKA_API_KEY="$KAFKA_API_KEY" \
+              -e KAFKA_API_SECRET="$KAFKA_API_SECRET" \
+              -e JWT_SECRET="$JWT_SECRET" \
+              -e GMS_SECRET="$GMS_SECRET" \
+              -e GMS_BASE_URL="$GMS_BASE_URL" \
+              -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+              -e GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+              -e GOOGLE_REDIRECT_URI="$GOOGLE_REDIRECT_URI" \
+              -e GMAIL_USERNAME="$GMAIL_USERNAME" \
+              -e GMAIL_APP_PASSWORD="$GMAIL_APP_PASSWORD" \
+              -e BASE_URL="$BASE_URL" \
+              -e SOLAPI_KEY="$SOLAPI_KEY" \
+              -e SOLAPI_SECRET="$SOLAPI_SECRET" \
+              -e SOLAPI_FROM_NUMBER="$SOLAPI_FROM_NUMBER" \
               ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_API }}:latest
 
             # 5. 헬스 체크 및 롤백
@@ -249,20 +279,26 @@ jobs:
                   -v /home/ec2-user/logs/api-server:/var/log/newstagram \
                   -e LOGGING_FILE_NAME=/var/log/newstagram/application.log \
                   -e SPRING_PROFILES_ACTIVE=prod \
-                  -e RDS_ENDPOINT="${{ secrets.RDS_ENDPOINT }}" \
-                  -e RDS_USERNAME="${{ secrets.RDS_USERNAME }}" \
-                  -e RDS_PASSWORD="${{ secrets.RDS_PASSWORD }}" \
-                  -e REDIS_HOST="${{ secrets.REDIS_HOST }}" \
-                  -e REDIS_PORT="${{ secrets.REDIS_PORT }}" \
-                  -e KAFKA_BOOTSTRAP_SERVERS="${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}" \
-                  -e KAFKA_API_KEY="${{ secrets.KAFKA_API_KEY }}" \
-                  -e KAFKA_API_SECRET="${{ secrets.KAFKA_API_SECRET }}" \
-                  -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-                  -e GMS_SECRET="${{ secrets.GMS_SECRET }}" \
-                  -e GMS_BASE_URL="${{ secrets.GMS_BASE_URL }}" \
-                  -e GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
-                  -e GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-                  -e GOOGLE_REDIRECT_URI="${{ secrets.GOOGLE_REDIRECT_URI }}" \
+                  -e RDS_ENDPOINT="$RDS_ENDPOINT" \
+                  -e RDS_USERNAME="$RDS_USERNAME" \
+                  -e RDS_PASSWORD="$RDS_PASSWORD" \
+                  -e REDIS_HOST="$REDIS_HOST" \
+                  -e REDIS_PORT="$REDIS_PORT" \
+                  -e KAFKA_BOOTSTRAP_SERVERS="$KAFKA_BOOTSTRAP_SERVERS" \
+                  -e KAFKA_API_KEY="$KAFKA_API_KEY" \
+                  -e KAFKA_API_SECRET="$KAFKA_API_SECRET" \
+                  -e JWT_SECRET="$JWT_SECRET" \
+                  -e GMS_SECRET="$GMS_SECRET" \
+                  -e GMS_BASE_URL="$GMS_BASE_URL" \
+                  -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+                  -e GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+                  -e GOOGLE_REDIRECT_URI="$GOOGLE_REDIRECT_URI" \
+                  -e GMAIL_USERNAME="$GMAIL_USERNAME" \
+                  -e GMAIL_APP_PASSWORD="$GMAIL_APP_PASSWORD" \
+                  -e BASE_URL="$BASE_URL" \
+                  -e SOLAPI_KEY="$SOLAPI_KEY" \
+                  -e SOLAPI_SECRET="$SOLAPI_SECRET" \
+                  -e SOLAPI_FROM_NUMBER="$SOLAPI_FROM_NUMBER" \
                   $CURRENT_IMAGE_ID
                 echo "Rollback successful."
               else
@@ -271,6 +307,8 @@ jobs:
               exit 1
             else
               echo "Deployment successful."
+              # 6. 미사용 이미지 정리 (Dangling images)
+              docker image prune -f
             fi
 
   # 4. CD: Logging Server 배포
@@ -385,4 +423,6 @@ jobs:
               exit 1
             else
               echo "Deployment successful."
+              # 6. 미사용 이미지 정리 (Dangling images)
+              docker image prune -f
             fi

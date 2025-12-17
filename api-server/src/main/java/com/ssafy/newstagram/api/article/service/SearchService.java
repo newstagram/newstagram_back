@@ -19,6 +19,8 @@ import kr.co.shineware.nlp.komoran.model.KomoranResult;
 import kr.co.shineware.nlp.komoran.model.Token;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
@@ -46,6 +48,10 @@ public class SearchService {
     private final UserSearchHistoryRepository userSearchHistoryRepository;
     private final UserRepository userRepository;
     private final NewsCategoryRepository newsCategoryRepository;
+
+    @Autowired
+    @Lazy
+    private SearchService self;
     
     @Value("${gms.api.base-url}")
     private String gmsApiBaseUrl;
@@ -60,17 +66,21 @@ public class SearchService {
     private static final double STEP_DISTANCE_THRESHOLD = 0.05;
 
     @Transactional
-    public List<ArticleDto> searchArticles(Long userId, String query, int limit) {
-        // 1. Save Search History
-        saveSearchHistory(userId, query);
+    public List<ArticleDto> searchArticles(Long userId, String query, int limit, int page) {
+        // 1. Save Search History (Only for the first page)
+        if (page == 0) {
+            saveSearchHistory(userId, query);
+        }
 
         // 2. Perform Search (Cached)
-        return getCachedSearchResults(query, limit);
+        // Authenticated search uses strict threshold (0.8) to limit results to relevant ones
+        // Use 'self' to invoke via proxy for caching
+        return self.getCachedSearchResults(query, limit, page, 0.80);
     }
 
-    @Cacheable(value = "search_results", key = "#query")
-    public List<ArticleDto> getCachedSearchResults(String query, int limit) {
-        log.info("[Search] Original Query: {}", query);
+    @Cacheable(value = "search_results", key = "#query + '-' + #page + '-' + #limit + '-' + #threshold")
+    public List<ArticleDto> getCachedSearchResults(String query, int limit, int page, double threshold) {
+        log.info("[Search] Original Query: {}, Page: {}", query, page);
 
         // 1. Try Local Analysis (Rule-based)
         IntentAnalysisResponse intent = analyzeIntentLocal(query);
@@ -110,11 +120,12 @@ public class SearchService {
         // Instead of looping DB queries, fetch a larger candidate pool once.
         // Since results are ordered by distance, the top results are the best matches.
         int fetchLimit = limit * 10; // Fetch plenty of candidates to handle filtering
+        int offset = page * limit;
         
-        log.info("[Search] Searching once with threshold: {}, fetchLimit: {}", MAX_DISTANCE_THRESHOLD, fetchLimit);
+        log.info("[Search] Searching once with threshold: {}, fetchLimit: {}, offset: {}", threshold, fetchLimit, offset);
         
         List<Article> candidates = articleRepository.findByEmbeddingSimilarityWithFilters(
-                embeddingString, fetchLimit, categoryId, startDate, MAX_DISTANCE_THRESHOLD);
+                embeddingString, fetchLimit, offset, categoryId, startDate, threshold);
 
         List<Article> articles = new ArrayList<>();
 
@@ -267,7 +278,9 @@ public class SearchService {
                word.equals("에서") || word.equals("로") || word.equals("으로") || word.equals("와") || 
                word.equals("과") || word.equals("도") || word.equals("만") || word.equals("나") || 
                word.equals("이나") || word.equals("부터") || word.equals("까지") || word.equals("필요");
-    }    private String matchCategory(String word) {
+    }    
+    
+    private String matchCategory(String word) {
         // 1. TOP (속보, 헤드라인)
         if (word.equals("속보") || word.equals("헤드라인") || word.equals("주요")) return "TOP";
         
@@ -431,7 +444,7 @@ public class SearchService {
                 .build();
     }
 
-    public List<ArticleDto> getRecommendedArticles(Long userId) {
+    public List<ArticleDto> getRecommendedArticles(Long userId, int page, int limit) {
         // Use native query to fetch embedding as string to avoid Hibernate mapping issues
         String embeddingStr = userRepository.findPreferenceEmbeddingAsString(userId);
         
@@ -441,11 +454,11 @@ public class SearchService {
 
         // Fix time range to 7 days
         LocalDateTime startDate = LocalDateTime.now().minusDays(7);
+        int offset = page * limit;
 
-        // embeddingStr from Postgres cast(vector as varchar) is like "[0.1,0.2,...]"
-        // We can pass this directly to the repository query
+        // Use a relaxed threshold (2.0) for recommendations to allow infinite scrolling
         List<Article> articles = articleRepository.findByEmbeddingSimilarityWithFilters(
-                embeddingStr, 10, null, startDate, MAX_DISTANCE_THRESHOLD);
+                embeddingStr, limit, offset, null, startDate, 2.0);
 
         return articles.stream()
                 .map(this::convertToDto)
@@ -453,7 +466,7 @@ public class SearchService {
     }
 
     public List<SearchHistoryDto> getSearchHistory(Long userId) {
-        return userSearchHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        return userSearchHistoryRepository.findHistoryNative(userId).stream()
                 .map(history -> new SearchHistoryDto(history.getId(), history.getQuery()))
                 .limit(20)
                 .collect(Collectors.toList());
@@ -461,25 +474,17 @@ public class SearchService {
 
     @Transactional
     public void deleteSearchHistory(Long userId, Long historyId) {
-        UserSearchHistory history = userSearchHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new IllegalArgumentException("History not found"));
-
-        if (!history.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("Unauthorized access to history");
+        int deletedCount = userSearchHistoryRepository.deleteByIdAndUserId(historyId, userId);
+        if (deletedCount == 0) {
+            throw new IllegalArgumentException("History not found or unauthorized");
         }
-
-        userSearchHistoryRepository.delete(history);
     }
 
     @Transactional
     public void updateSearchHistory(Long userId, Long historyId, String newQuery) {
-        UserSearchHistory history = userSearchHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new IllegalArgumentException("History not found"));
-
-        if (!history.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("Unauthorized access to history");
+        int updatedCount = userSearchHistoryRepository.updateQueryByIdAndUserId(historyId, userId, newQuery);
+        if (updatedCount == 0) {
+            throw new IllegalArgumentException("History not found or unauthorized");
         }
-
-        history.updateQuery(newQuery);
     }
 }
