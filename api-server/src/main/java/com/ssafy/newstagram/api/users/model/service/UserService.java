@@ -14,4 +14,5 @@ public interface UserService {
     void updatePassword(Long userId, UpdatePasswordRequestDto dto);
 
     boolean isAvailableEmail(EmailAvailabilityRequestDto dto);
+    boolean isAvailablePhoneNumber(PhoneNumberAvailabilityRequestDto dto);
 }

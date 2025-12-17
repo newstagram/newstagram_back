@@ -199,4 +199,42 @@ public class UserController {
                 )
         );
     }
+
+    @PostMapping("/phone-number/availability")
+    @Operation(
+            summary = "휴대폰 번호 중복 체크",
+            description = "회원가입 시 사용할 휴대폰 번호의 사용 가능 여부를 확인합니다.\n\n" +
+                    "- 사용 가능한 휴대폰 번호인 경우 `available = true`가 반환됩니다.\n" +
+                    "- 이미 사용 중인 휴대폰 번호인 경우 `available = false`가 반환됩니다.\n" +
+                    "- 탈퇴한 휴대폰 번호인 경우, 현재 `available = false`가 반환됩니다.\n" +
+                    "- 이 API는 중복 여부를 조회하는 용도로, 정상 요청 시에 항상 200 응답을 반환합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "휴대폰 번호 중복 체크 성공"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "휴대폰 번호 형식 오류 또는 잘못된 요청"
+            )
+    })
+    public ResponseEntity<?> checkEmailAvailability(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "휴대폰 번호중복 체크 요청 정보",
+                    required = true
+            )
+            @Valid @RequestBody PhoneNumberAvailabilityRequestDto dto
+    ){
+        boolean isAvailable = userService.isAvailablePhoneNumber(dto);
+        return ResponseEntity.status(HttpStatus.OK).body(
+                BaseResponse.success(
+                        "USER_200",
+                        "휴대폰 번호 중복 체크 성공",
+                        Map.of(
+                                "available", isAvailable
+                        )
+                )
+        );
+    }
 }

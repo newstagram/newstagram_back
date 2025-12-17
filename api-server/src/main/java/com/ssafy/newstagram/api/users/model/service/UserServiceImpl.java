@@ -108,4 +108,10 @@ public class UserServiceImpl implements  UserService{
         return !userRepository.existsByEmailIncludeDeleted(email);
     }
 
+    @Override
+    public boolean isAvailablePhoneNumber(PhoneNumberAvailabilityRequestDto dto) {
+        String phoneNumber = dto.getPhoneNumber();
+        return !userRepository.existsByPhoneNumberIncludedDeleted(phoneNumber);
+    }
+
 }
