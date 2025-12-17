@@ -6,10 +6,12 @@ import com.ssafy.newstagram.api.article.repository.PeriodRecommendationRepositor
 import com.ssafy.newstagram.domain.news.entity.Article;
 import com.ssafy.newstagram.domain.util.period.Period;
 import com.ssafy.newstagram.domain.util.period.PeriodCalculator;
+import com.ssafy.newstagram.domain.recommend.entity.PeriodRecommendation;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
