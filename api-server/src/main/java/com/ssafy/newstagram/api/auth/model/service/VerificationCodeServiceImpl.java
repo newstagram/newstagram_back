@@ -149,4 +149,16 @@ public class VerificationCodeServiceImpl implements VerificationCodeService{
         int number = random.nextInt((int) Math.pow(10, CODE_LENGTH));
         return String.format("%0" + CODE_LENGTH + "d", number);
     }
+
+    public boolean checkVerified(String phoneNumber){
+        String key = generatePhoneVerificationKey(phoneNumber);
+        Boolean value = (Boolean) redisTemplate.opsForHash().get(key, "verified");
+        return Boolean.TRUE.equals(value);
+    }
+
+    @Override
+    public void deletePhoneVerificationKey(String phoneNumber) {
+        String key = generatePhoneVerificationKey(phoneNumber);
+        redisTemplate.delete(key);
+    }
 }
