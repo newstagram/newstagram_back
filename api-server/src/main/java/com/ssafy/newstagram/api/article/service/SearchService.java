@@ -19,6 +19,8 @@ import kr.co.shineware.nlp.komoran.model.KomoranResult;
 import kr.co.shineware.nlp.komoran.model.Token;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
@@ -46,6 +48,10 @@ public class SearchService {
     private final UserSearchHistoryRepository userSearchHistoryRepository;
     private final UserRepository userRepository;
     private final NewsCategoryRepository newsCategoryRepository;
+
+    @Autowired
+    @Lazy
+    private SearchService self;
     
     @Value("${gms.api.base-url}")
     private String gmsApiBaseUrl;
@@ -61,15 +67,18 @@ public class SearchService {
 
     @Transactional
     public List<ArticleDto> searchArticles(Long userId, String query, int limit, int page) {
-        // 1. Save Search History
-        saveSearchHistory(userId, query);
+        // 1. Save Search History (Only for the first page)
+        if (page == 0) {
+            saveSearchHistory(userId, query);
+        }
 
         // 2. Perform Search (Cached)
         // Authenticated search uses strict threshold (0.8) to limit results to relevant ones
-        return getCachedSearchResults(query, limit, page, 0.80);
+        // Use 'self' to invoke via proxy for caching
+        return self.getCachedSearchResults(query, limit, page, 0.80);
     }
 
-    @Cacheable(value = "search_results", key = "#query + '-' + #page")
+    @Cacheable(value = "search_results", key = "#query + '-' + #page + '-' + #limit + '-' + #threshold")
     public List<ArticleDto> getCachedSearchResults(String query, int limit, int page, double threshold) {
         log.info("[Search] Original Query: {}, Page: {}", query, page);
 
@@ -407,15 +416,19 @@ public class SearchService {
 
     private void saveSearchHistory(Long userId, String query) {
         try {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+            // 1. Try to update existing history timestamp to move it to top
+            int updated = userSearchHistoryRepository.updateCreatedAtByUserIdAndQuery(userId, query);
 
-            UserSearchHistory history = UserSearchHistory.builder()
-                    .user(user)
-                    .query(query)
-                    .build();
+            // 2. If not exists, save new history
+            if (updated == 0) {
+                User user = userRepository.getReferenceById(userId);
+                UserSearchHistory history = UserSearchHistory.builder()
+                        .user(user)
+                        .query(query)
+                        .build();
 
-            userSearchHistoryRepository.save(history);
+                userSearchHistoryRepository.save(history);
+            }
         } catch (Exception e) {
             log.error("Failed to save search history for user: {}", userId, e);
             // Do not fail the search if history saving fails
@@ -457,7 +470,7 @@ public class SearchService {
     }
 
     public List<SearchHistoryDto> getSearchHistory(Long userId) {
-        return userSearchHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        return userSearchHistoryRepository.findHistoryNative(userId).stream()
                 .map(history -> new SearchHistoryDto(history.getId(), history.getQuery()))
                 .limit(20)
                 .collect(Collectors.toList());
@@ -465,25 +478,17 @@ public class SearchService {
 
     @Transactional
     public void deleteSearchHistory(Long userId, Long historyId) {
-        UserSearchHistory history = userSearchHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new IllegalArgumentException("History not found"));
-
-        if (!history.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("Unauthorized access to history");
+        int deletedCount = userSearchHistoryRepository.deleteByIdAndUserId(historyId, userId);
+        if (deletedCount == 0) {
+            throw new IllegalArgumentException("History not found or unauthorized");
         }
-
-        userSearchHistoryRepository.delete(history);
     }
 
     @Transactional
     public void updateSearchHistory(Long userId, Long historyId, String newQuery) {
-        UserSearchHistory history = userSearchHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new IllegalArgumentException("History not found"));
-
-        if (!history.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("Unauthorized access to history");
+        int updatedCount = userSearchHistoryRepository.updateQueryByIdAndUserId(historyId, userId, newQuery);
+        if (updatedCount == 0) {
+            throw new IllegalArgumentException("History not found or unauthorized");
         }
-
-        history.updateQuery(newQuery);
     }
 }
