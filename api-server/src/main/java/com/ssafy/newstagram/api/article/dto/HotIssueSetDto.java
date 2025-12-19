@@ -1,14 +1,10 @@
 package com.ssafy.newstagram.api.article.dto;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
 
-import java.sql.Timestamp;
 import java.util.List;
 
 @Getter
@@ -17,13 +13,10 @@ import java.util.List;
 @AllArgsConstructor
 public class HotIssueSetDto {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String hotIssueSetName;
-    private String issueType;
-    private Timestamp periodStart;
+    private String periodKey;
+    private String periodType;
 
-    private List<Long> items;    // 포함된 기사 id 리스트
-
+    // 클러스터(그룹) 단위 Hot Issue
+    private List<HotIssueGroupDto> groups;
 }
+

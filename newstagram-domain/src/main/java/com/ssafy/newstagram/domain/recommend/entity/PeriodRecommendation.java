@@ -19,6 +19,12 @@ public class PeriodRecommendation {
     @Column(name = "period_type", nullable = false)
     private String periodType;
 
+    @Column(name = "period_start")
+    private LocalDateTime periodStart;
+
+    @Column(name = "period_end")
+    private LocalDateTime periodEnd;
+
     @Column(nullable = false)
     private Integer ranking;
 
