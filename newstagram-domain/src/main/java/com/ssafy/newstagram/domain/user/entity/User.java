@@ -1,5 +1,6 @@
 package com.ssafy.newstagram.domain.user.entity;
 
+import com.ssafy.newstagram.domain.common.DoubleListConverter;
 import jakarta.persistence.*;
 import jakarta.persistence.Table;
 import lombok.*;
@@ -46,7 +47,10 @@ public class User {
     @Column(name = "refresh_token", length = 500)
     private String refreshToken;
 
-    @Column(name = "preference_embedding", columnDefinition = "vector(1536)")
+
+    @Convert(converter = DoubleListConverter.class)
+    @Column(name = "preference_embedding", columnDefinition = "vector")
+    @ColumnTransformer(write = "?::vector")
     private List<Double> preferenceEmbedding;
 
     @CreationTimestamp
