@@ -29,7 +29,8 @@ public class ArticleVectorServiceImpl implements ArticleVectorService {
     private String gmsApiBaseUrl;
     @Value("${gms.api.key}")
     private String gmsApiKey;
-    private static final String MODEL_NAME = "text-embedding-3-small";
+    private static final String MODEL_NAME = "text-embedding-3-large";
+    private static final int EMBEDDING_DIMENSIONS = 1536;
 
    //한번에 묶어 보낼 기사 개수
     private static final int EMBEDDING_BATCH_SIZE = 128;
@@ -179,9 +180,10 @@ public class ArticleVectorServiceImpl implements ArticleVectorService {
         }
 
         String rawJson = String.format(
-                "{\"model\":\"%s\",\"input\":%s}",
+                "{\"model\":\"%s\",\"input\":%s,\"dimensions\":%d,\"encoding_format\":\"float\"}",
                 MODEL_NAME,
-                escapedInput
+                escapedInput,
+                EMBEDDING_DIMENSIONS
         );
 
         log.info("[Embedding] BATCH RAW JSON={}", rawJson);
