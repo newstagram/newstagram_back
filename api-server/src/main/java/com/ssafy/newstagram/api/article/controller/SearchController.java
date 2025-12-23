@@ -25,7 +25,7 @@ public class SearchController {
 
     private final SearchService searchService;
 
-    @Operation(summary = "시맨틱 검색", description = "형태소 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
+    @Operation(summary = "시맨틱 검색", description = "형태소 분석과 LLM 카테고리 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
     @PostMapping
     public ResponseEntity<List<ArticleDto>> searchArticles(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -51,7 +51,7 @@ public class SearchController {
         return ResponseEntity.ok(results);
     }
 
-    @Operation(summary = "시맨틱 검색 (테스트)", description = "사용자 인증 없이 형태소 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
+    @Operation(summary = "시맨틱 검색 (테스트)", description = "사용자 인증 없이 형태소 분석과 LLM 카테고리 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
     @PostMapping("/test")
     public ResponseEntity<List<ArticleDto>> searchArticlesTest(@RequestBody SearchRequest request) {
         
