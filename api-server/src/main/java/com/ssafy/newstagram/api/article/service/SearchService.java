@@ -5,6 +5,8 @@ import com.ssafy.newstagram.api.article.dto.ArticleDto;
 import com.ssafy.newstagram.api.article.dto.EmbeddingResponse;
 import com.ssafy.newstagram.api.article.dto.IntentAnalysisResponse;
 import com.ssafy.newstagram.api.article.dto.SearchHistoryDto;
+import com.ssafy.newstagram.api.article.repository.NewsCategoryRepository;
+import com.ssafy.newstagram.domain.news.entity.NewsCategory;
 import com.ssafy.newstagram.api.article.repository.ArticleRepository;
 import com.ssafy.newstagram.api.users.repository.UserRepository;
 import com.ssafy.newstagram.api.users.repository.UserSearchHistoryRepository;
@@ -45,6 +47,7 @@ public class SearchService {
     private final ArticleRepository articleRepository;
     private final UserSearchHistoryRepository userSearchHistoryRepository;
     private final UserRepository userRepository;
+    private final NewsCategoryRepository newsCategoryRepository;
 
     @Autowired
     @Lazy
@@ -52,10 +55,13 @@ public class SearchService {
     
     @Value("${gms.api.base-url}")
     private String gmsApiBaseUrl;
+    @Value("${gms.api.llm-base-url}")
+    private String gmsLlmBaseUrl;
     @Value("${gms.api.key}")
     private String gmsApiKey;
     
     private static final String MODEL_NAME = "text-embedding-3-small";
+    private static final String LLM_MODEL_NAME = "gpt-4o-mini";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Komoran komoran = new Komoran(DEFAULT_MODEL.FULL);
 
@@ -69,7 +75,7 @@ public class SearchService {
         // 2. Perform Search (Cached)
         // Authenticated search uses strict threshold (0.8) to limit results to relevant ones
         // Use 'self' to invoke via proxy for caching
-        return self.getCachedSearchResults(query, limit, page, 0.40);
+        return self.getCachedSearchResults(query, limit, page, 0.80);
     }
 
     @Cacheable(value = "search_results", key = "#query + '-' + #page + '-' + #limit + '-' + #threshold")
@@ -107,7 +113,11 @@ public class SearchService {
 
         String embeddingString = toPgVectorLiteral(embedding); 
 
-        Long categoryId = null;
+        // 3. LLM Category Analysis
+        long llmStartTime = System.currentTimeMillis();
+        List<Long> categoryIds = analyzeCategoryWithLLM(query);
+        long llmEndTime = System.currentTimeMillis();
+        log.info("[Search] LLM Category Analysis took {} ms. Categories: {}", (llmEndTime - llmStartTime), categoryIds);
 
         LocalDateTime startDate = null;
         if (intent.getDateRange() > 0) {
@@ -115,21 +125,16 @@ public class SearchService {
         }
 
         // Optimization: Single DB Query with MAX threshold and large limit
-        // Instead of looping DB queries, fetch a larger candidate pool once.
-        // Since results are ordered by distance, the top results are the best matches.
-        // Reranking Strategy: Fetch top N relevant -> Filter -> Sort by Date
-        int candidateLimit = 400; // Fetch enough candidates to sort by date
+        int candidateLimit = 800; 
         
         log.info("[Search] Searching candidates with threshold: {}, limit: {}", threshold, candidateLimit);
         
-        // Direct Vector Search without strict keyword filtering to support semantic search (e.g. Car -> Vehicle)
         long dbStartTime = System.currentTimeMillis();
         List<Article> articles = articleRepository.findCandidatesByEmbedding(
-                embeddingString, candidateLimit, categoryId, startDate, threshold);
+                embeddingString, candidateLimit, categoryIds, startDate, threshold);
         long dbEndTime = System.currentTimeMillis();
         log.info("[Search] DB Query took {} ms", (dbEndTime - dbStartTime));
 
-        // Keyword Filtering: Ensure at least one keyword exists in title or description
         List<String> filterKeywords = (intent.getKeywords() != null && !intent.getKeywords().isEmpty())
                 ? intent.getKeywords()
                 : List.of(query.split("\\s+"));
@@ -349,6 +354,82 @@ public class SearchService {
         }
         
         return body.getData().get(0).getEmbedding();
+    }
+
+    private List<Long> analyzeCategoryWithLLM(String query) {
+        if (query == null || query.isBlank()) {
+            return new ArrayList<>();
+        }
+
+        String prompt = "Analyze the following search query and identify the top 3 most relevant categories from the list below. " +
+                "Return ONLY the category codes separated by commas (e.g., POLITICS, ECONOMY, WORLD). " +
+                "If no category matches, return OTHER.\n\n" +
+                "Categories:\n" +
+                "TOP (속보, 최신 기사, 헤드라인, 전체 기사 스트림)\n" +
+                "POLITICS (정치 관련 기사)\n" +
+                "ECONOMY (경제 관련 기사)\n" +
+                "BUSINESS (기업, 산업, 증권, 부동산, 마켓 관련 기사)\n" +
+                "SOCIETY (사회 일반 기사)\n" +
+                "LOCAL (지역, 전국 이슈)\n" +
+                "WORLD (국제, 세계 뉴스)\n" +
+                "NORTH_KOREA (북한 관련 기사)\n" +
+                "CULTURE_LIFE (문화, 생활, 라이프 기사)\n" +
+                "ENTERTAINMENT (연예, 예능, 게임 등)\n" +
+                "SPORTS (스포츠 기사)\n" +
+                "WEATHER (날씨 기사)\n" +
+                "SCIENCE_ENV (과학, 기술, 환경 기사)\n" +
+                "HEALTH (건강, 의료 기사)\n" +
+                "OPINION (사설, 칼럼, 오피니언)\n" +
+                "PEOPLE (사람들, 인물 기사)\n" +
+                "Query: " + query;
+
+        String url = gmsApiBaseUrl.endsWith("/")
+                ? gmsApiBaseUrl + "chat/completions"
+                : gmsApiBaseUrl + "/chat/completions";
+
+        try {
+            String requestBody = OBJECT_MAPPER.writeValueAsString(java.util.Map.of(
+                    "model", LLM_MODEL_NAME,
+                    "messages", List.of(
+                            java.util.Map.of("role", "developer", "content", "You are a helpful assistant that categorizes news queries."),
+                            java.util.Map.of("role", "user", "content", prompt)
+                    )
+            ));
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(gmsApiKey);
+
+            HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
+            RestTemplate restTemplate = new RestTemplate();
+            
+            ResponseEntity<com.fasterxml.jackson.databind.JsonNode> response = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, com.fasterxml.jackson.databind.JsonNode.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                String content = response.getBody().path("choices").get(0).path("message").path("content").asText();
+                log.info("[Search] LLM Response: {}", content);
+                
+                List<Long> categoryIds = new ArrayList<>();
+                String[] codes = content.split(",");
+                for (String code : codes) {
+                    String cleanCode = code.trim().toUpperCase();
+                    // Remove any non-alphanumeric characters if necessary, but trim should be enough for "POLITICS"
+                    // Handle potential extra text if LLM is chatty (though prompt says ONLY codes)
+                    if (cleanCode.contains(" ")) {
+                        cleanCode = cleanCode.split("\\s+")[0];
+                    }
+                    
+                    String finalCode = cleanCode;
+                    newsCategoryRepository.findByName(finalCode).ifPresent(category -> categoryIds.add(category.getId()));
+                }
+                return categoryIds;
+            }
+        } catch (Exception e) {
+            log.error("[Search] LLM Category Analysis Failed", e);
+        }
+        
+        return new ArrayList<>();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
