@@ -134,5 +134,18 @@ public class NewsSourceItemWriter implements ItemWriter<Long> {
         }
 
         newsBatchLogRepository.save(logEntity);
+        infoSystemJobLog(logEntity);
     }
+    private void infoSystemJobLog(NewsBatchLog e) {
+        log.info(
+                "[rss] jobName={}, message={}, startedAt={}, endedAt={}, status={}, retryCount={}",
+                e.getJobName(),
+                e.getMessage(),
+                e.getStartedAt(),
+                e.getEndedAt(),
+                e.getStatus(),
+                e.getRetryCount()
+        );
+    }
+
 }
