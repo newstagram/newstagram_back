@@ -1,12 +1,15 @@
 package com.ssafy.newstagram.api.logging.controller;
 
 import com.ssafy.newstagram.api.common.BaseResponse;
+import com.ssafy.newstagram.api.logging.domain.User;
+import com.ssafy.newstagram.api.logging.domain.repository.SurveyUserRepository;
 import com.ssafy.newstagram.api.logging.model.dto.SurveySubmitRequestDto;
 import com.ssafy.newstagram.api.logging.model.service.SurveyService;
 import com.ssafy.newstagram.api.users.model.dto.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,6 +21,7 @@ import java.util.Map;
 @RequestMapping("/survey")
 @RequiredArgsConstructor
 @Tag(name = "Survey API", description = "최초 로그인 시 콜드 스타트용 임베딩 데이터 설문")
+@Slf4j
 public class SurveyController {
 
     private final SurveyService surveyService;
@@ -43,12 +47,11 @@ public class SurveyController {
             description = "Users 테이블의 preference_embedding 데이터가 Null값인지 체크합니다."
     )
     public ResponseEntity<?> getUserEmbedding(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        Map<String, Boolean> responseData = Map.of("initialized", userDetails.isEmbeddingInitialized());
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.success(
                         "SURVEY_200",
                         "유저 임베딩 데이터 조회 성공",
-                        responseData
+                        surveyService.getEmbedding(userDetails)
                 )
         );
     }

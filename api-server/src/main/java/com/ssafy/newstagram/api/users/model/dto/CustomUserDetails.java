@@ -63,6 +63,4 @@ public class CustomUserDetails implements UserDetails {
     public Long getUserId() {
         return user.getId();
     }
-
-    public boolean isEmbeddingInitialized() { return user.getPreferenceEmbedding() != null; }
 }
