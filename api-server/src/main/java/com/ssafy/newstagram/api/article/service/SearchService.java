@@ -30,7 +30,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -73,10 +72,14 @@ public class SearchService {
 
     @Cacheable(value = "search_results", key = "#query + '-' + #page + '-' + #limit + '-' + #threshold")
     public List<ArticleDto> getCachedSearchResults(String query, int limit, int page, double threshold) {
+        long totalStartTime = System.currentTimeMillis();
         log.info("[Search] Original Query: {}, Page: {}", query, page);
 
         // 1. Try Local Analysis (Rule-based)
+        long analysisStartTime = System.currentTimeMillis();
         IntentAnalysisResponse intent = analyzeIntentLocal(query);
+        long analysisEndTime = System.currentTimeMillis();
+        log.info("[Search] Local Analysis took {} ms", (analysisEndTime - analysisStartTime));
 
         if (intent == null) {
             intent = new IntentAnalysisResponse(query, null, 7, new ArrayList<>()); // Default 7 days if analysis fails
@@ -95,7 +98,11 @@ public class SearchService {
                 ? intent.getQuery() 
                 : query;
         
+        long embeddingStartTime = System.currentTimeMillis();
         List<Double> embedding = self.getCachedEmbedding(searchKeywords);
+        long embeddingEndTime = System.currentTimeMillis();
+        log.info("[Search] Embedding API took {} ms", (embeddingEndTime - embeddingStartTime));
+
         String embeddingString = toPgVectorLiteral(embedding); 
 
         Long categoryId = null;
@@ -114,15 +121,19 @@ public class SearchService {
         log.info("[Search] Searching candidates with threshold: {}, limit: {}", threshold, candidateLimit);
         
         // Direct Vector Search without strict keyword filtering to support semantic search (e.g. Car -> Vehicle)
+        long dbStartTime = System.currentTimeMillis();
         List<Article> articles = articleRepository.findCandidatesByEmbedding(
                 embeddingString, candidateLimit, categoryId, startDate, threshold);
+        long dbEndTime = System.currentTimeMillis();
+        log.info("[Search] DB Query took {} ms", (dbEndTime - dbStartTime));
 
         // Keyword Filtering: Ensure at least one keyword exists in title or description
         List<String> filterKeywords = (intent.getKeywords() != null && !intent.getKeywords().isEmpty())
                 ? intent.getKeywords()
                 : List.of(query.split("\\s+"));
 
-        return articles.stream()
+        long processingStartTime = System.currentTimeMillis();
+        List<ArticleDto> result = articles.stream()
                 .filter(article -> {
                     String title = article.getTitle() != null ? article.getTitle() : "";
                     String description = article.getDescription() != null ? article.getDescription() : "";
@@ -136,6 +147,13 @@ public class SearchService {
                 .limit(limit)
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
+        long processingEndTime = System.currentTimeMillis();
+        log.info("[Search] Filtering & Sorting took {} ms", (processingEndTime - processingStartTime));
+        
+        long totalEndTime = System.currentTimeMillis();
+        log.info("[Search] Total Service Execution took {} ms", (totalEndTime - totalStartTime));
+
+        return result;
     }
 
     private IntentAnalysisResponse analyzeIntentLocal(String query) {
@@ -331,6 +349,7 @@ public class SearchService {
         return body.getData().get(0).getEmbedding();
     }
 
+    @Transactional
     private void saveSearchHistory(Long userId, String query) {
         try {
             // 1. Try to update existing history timestamp to move it to top
