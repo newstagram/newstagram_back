@@ -9,6 +9,7 @@ import com.ssafy.newstagram.api.users.model.dto.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/v1/search")
 @RequiredArgsConstructor
+@Slf4j
 public class SearchController {
 
     private final SearchService searchService;
@@ -38,7 +40,14 @@ public class SearchController {
 
         Long userId = userDetails.getUserId();
 
+        long startTime = System.currentTimeMillis();
+        log.info("[SearchController] Request received - Query: {}, Limit: {}, Page: {}", query, limit, page);
+
         List<ArticleDto> results = searchService.searchArticles(userId, query, limit, page);
+        
+        long endTime = System.currentTimeMillis();
+        log.info("[SearchController] Request processed in {} ms", (endTime - startTime));
+
         return ResponseEntity.ok(results);
     }
 
