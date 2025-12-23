@@ -26,7 +26,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
         ErrorDetail errorDetail = ErrorDetail.builder()
                 .type("AUTHENTICATION_FAILED")
-                .message("유효하지 않은 토큰입니다.")
+                .message("유효하지 않은 접근입니다.")
                 .build();
 
         BaseResponse<?> errorResponse = BaseResponse.error("AUTH_401", "인증 실패", errorDetail);
