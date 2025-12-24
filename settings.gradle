@@ -1,0 +1,7 @@
+rootProject.name = 'newstagram'
+
+// 멀티 모듈 구성
+include 'api-server'
+include 'logging-server'
+include 'rss-collector'
+include 'newstagram-domain'

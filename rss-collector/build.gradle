@@ -1,0 +1,57 @@
+// RSS Collector - RSS 뉴스 수집 서버
+description = 'Newstagram RSS Collector'
+
+dependencies {
+    // Domain Module
+    implementation project(':newstagram-domain')
+
+    // MyBatis 추가
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
+
+    // Swagger / openAPI 추가
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // Spring Batch for Scheduled Collection
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    testImplementation 'org.springframework.batch:spring-batch-test'
+
+    //Quartz
+    implementation 'org.springframework.boot:spring-boot-starter-quartz'
+
+    // JPA & Database
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+    
+    // Redis for Cache
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // RSS Feed Parser
+    implementation 'com.rometools:rome:2.1.0'
+    implementation 'com.rometools:rome-modules:2.1.0'
+    
+    // HTTP Client for Feign
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // WebClient for Async RSS Fetching
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    
+    // Jsoup for HTML Parsing
+    implementation 'org.jsoup:jsoup:1.17.2'
+
+    //Rome-modules(썸네일 추출)
+    implementation 'com.rometools:rome:1.16.0'
+    implementation 'com.rometools:rome-modules:1.16.0'
+
+    // java 머신러닝 라이브러리
+    implementation 'com.github.haifengl:smile-core:3.0.1'
+
+}
+
+bootJar {
+    enabled = true
+    archiveFileName = 'rss-collector.jar'
+}
+
+jar {
+    enabled = false
+}
