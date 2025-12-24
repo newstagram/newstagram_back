@@ -28,6 +28,6 @@ public class QuartzConfig {
                 .forJob(rssJobDetail)
                 .withIdentity("rssBatchTrigger")
                 .withSchedule(scheduleBuilder)
-                .build();
+                .build(); 
     }
 }

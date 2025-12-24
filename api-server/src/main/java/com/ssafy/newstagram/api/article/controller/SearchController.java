@@ -9,6 +9,7 @@ import com.ssafy.newstagram.api.users.model.dto.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -19,11 +20,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/v1/search")
 @RequiredArgsConstructor
+@Slf4j
 public class SearchController {
 
     private final SearchService searchService;
 
-    @Operation(summary = "시맨틱 검색", description = "형태소 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
+    @Operation(summary = "시맨틱 검색", description = "형태소 분석과 LLM 카테고리 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
     @PostMapping
     public ResponseEntity<List<ArticleDto>> searchArticles(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -38,11 +40,19 @@ public class SearchController {
 
         Long userId = userDetails.getUserId();
 
+        long startTime = System.currentTimeMillis();
+        
         List<ArticleDto> results = searchService.searchArticles(userId, query, limit, page);
+        
+        long endTime = System.currentTimeMillis();
+
+        log.info("[SearchController] Slow Request Check - Time: {}ms | Query: {}, Limit: {}, Page: {}", 
+        (endTime - startTime), query, limit, page);
+
         return ResponseEntity.ok(results);
     }
 
-    @Operation(summary = "시맨틱 검색 (테스트)", description = "사용자 인증 없이 형태소 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
+    @Operation(summary = "시맨틱 검색 (테스트)", description = "사용자 인증 없이 형태소 분석과 LLM 카테고리 분석 및 벡터 유사도 기반의 하이브리드 방식을 사용하여 기사를 검색합니다.")
     @PostMapping("/test")
     public ResponseEntity<List<ArticleDto>> searchArticlesTest(@RequestBody SearchRequest request) {
         

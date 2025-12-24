@@ -6,6 +6,7 @@ import com.ssafy.newstagram.api.auth.model.service.AuthService;
 import com.ssafy.newstagram.api.auth.model.service.RefreshTokenService;
 import com.ssafy.newstagram.api.auth.model.service.VerificationCodeService;
 import com.ssafy.newstagram.api.common.BaseResponse;
+import com.ssafy.newstagram.api.exception.TokenException;
 import com.ssafy.newstagram.api.users.model.dto.CustomUserDetails;
 import com.ssafy.newstagram.api.users.model.service.UserService;
 import com.ssafy.newstagram.domain.user.entity.User;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -108,7 +111,7 @@ public class AuthController {
                 BaseResponse.success(
                         "AUTH_200",
                         "토큰 재발급 성공",
-                        new LoginResponseDto(newAccessToken, newRefreshToken)
+                        new LoginResponseDto(newAccessToken, newRefreshToken, user.getRole())
                 )
         );
     }
@@ -163,6 +166,10 @@ public class AuthController {
             @RequestBody PasswordResetRequestRequestDto dto
     ) {
         authService.requestPasswordReset(dto);
+
+        // [Auth] 비밀번호 재설정 요청 로그 (요청 이메일 기록)
+        log.info("[Auth] Password reset request: email={}", dto.getEmail());
+
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.success(
                         "AUTH_200",
@@ -199,6 +206,10 @@ public class AuthController {
             @RequestBody PasswordResetRequestDto dto
     ) {
         authService.passwordReset(dto);
+
+        // [Auth] 비밀번호 재설정 완료 로그 (단순 성공 기록)
+        log.info("[Auth] Password reset confirm success");
+
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.successNoData(
                         "AUTH_200",
@@ -230,6 +241,9 @@ public class AuthController {
     ) {
         final long expirationMs = 300000;
         verificationCodeService.requestEmailFindVerificationCode(dto, expirationMs);
+
+        // [Auth] 이메일 찾기 인증번호 요청 로그
+        log.info("[Auth] Find email code request: phoneNumber={}", dto.getPhoneNumber());
 
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.success(
@@ -265,6 +279,10 @@ public class AuthController {
             @Valid @RequestBody EmailFindVerifyRequestDto dto
     ) {
         String email = verificationCodeService.verifyAndGetEmail(dto);
+
+        // [Auth] 이메일 찾기 성공 로그 (찾은 이메일 기록)
+        log.info("[Auth] Find email success: phoneNumber={} foundEmail={}", dto.getPhoneNumber(), email);
+
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.success(
                         "AUTH_200",
@@ -300,6 +318,10 @@ public class AuthController {
     ) {
         final long expirationMs = 300000;
         verificationCodeService.requestPhoneVerificationCode(dto, expirationMs);
+
+        // [Auth] 회원가입용 휴대폰 인증 요청 로그
+        log.info("[Auth] Signup phone code request: phoneNumber={}", dto.getPhoneNumber());
+
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.success(
                         "AUTH_200",
@@ -337,6 +359,10 @@ public class AuthController {
             @Valid @RequestBody PhoneVerificationConfirmDto dto
     ) {
         verificationCodeService.confirmPhoneVerification(dto);
+
+        // [Auth] 회원가입용 휴대폰 인증 성공 로그
+        log.info("[Auth] Signup phone verification success: phoneNumber={}", dto.getPhoneNumber());
+
         return ResponseEntity.status(HttpStatus.OK).body(
                 BaseResponse.successNoData(
                         "AUTH_200",
@@ -345,4 +371,47 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/token")
+    @Operation(
+            summary = "토큰 유효성 검사 및 재발급",
+            description = "클라이언트가 Access Token과 Refresh Token을 전달하면 다음과 같이 처리합니다.\n\n"
+        + "- Access Token이 유효한 경우 → accesstokenOK = true, 액세스 토큰 그대로 사용\n"
+        + "- Access Token이 만료된 경우 → accesstokenOK = false, Refresh Token으로 재발급된 액세스 토큰 전달\n"
+        + "- 두 토큰 모두 유효하지 않은 경우 → 401 Unauthorized 반환\n\n"
+        + "※ Authorization 헤더는 `Bearer {accessToken}` 형식이어야 합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "토큰 유효성 검사 성공"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "토큰이 유효하지 않음 또는 인증 실패"
+            )
+    })
+    public ResponseEntity<?> validateToken(
+            @Parameter(
+                    description = "Access Token (Bearer 타입)",
+                    example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    required = false
+            )
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Parameter(
+                    description = "Refresh Token",
+                    example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    required = false
+            )
+            @RequestHeader(value = "refreshToken", required = false) String refreshToken
+    ){
+        TokenValidationRequestDto dto = new TokenValidationRequestDto(authorization, refreshToken);
+        TokenValidationResponseDto result = authService.validateToken(dto);
+        return ResponseEntity.status(HttpStatus.OK).body(
+                BaseResponse.success(
+                        "AUTH_200",
+                        "토큰 유효성 검사 성공",
+                        result
+                )
+        );
+    }
 }

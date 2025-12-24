@@ -5,8 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 public interface UserSearchHistoryRepository extends JpaRepository<UserSearchHistory, Long> {
@@ -33,7 +33,8 @@ public interface UserSearchHistoryRepository extends JpaRepository<UserSearchHis
     @Query(value = "UPDATE user_search_histories SET query = :newQuery WHERE id = :id AND user_id = :userId", nativeQuery = true)
     int updateQueryByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId, @Param("newQuery") String newQuery);
 
-    @Modifying(clearAutomatically = true)
-    @Query(value = "UPDATE user_search_histories SET created_at = :now WHERE user_id = :userId AND query = :query", nativeQuery = true)
-    int updateCreatedAtByUserIdAndQuery(@Param("userId") Long userId, @Param("query") String query, @Param("now") LocalDateTime now);
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE user_search_histories SET created_at = NOW() WHERE user_id = :userId AND query = :query", nativeQuery = true)
+    int updateCreatedAtByUserIdAndQuery(@Param("userId") Long userId, @Param("query") String query);
 }
