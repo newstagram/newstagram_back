@@ -3,7 +3,6 @@ package com.ssafy.newstagram.api.article.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.newstagram.api.article.dto.ArticleDto;
 import com.ssafy.newstagram.api.article.dto.EmbeddingResponse;
-import com.ssafy.newstagram.api.article.dto.IntentAnalysisResponse;
 import com.ssafy.newstagram.api.article.dto.SearchHistoryDto;
 import com.ssafy.newstagram.api.article.repository.NewsCategoryRepository;
 import com.ssafy.newstagram.api.article.repository.ArticleRepository;
@@ -12,21 +11,13 @@ import com.ssafy.newstagram.api.users.repository.UserSearchHistoryRepository;
 import com.ssafy.newstagram.domain.news.entity.Article;
 import com.ssafy.newstagram.domain.user.entity.User;
 import com.ssafy.newstagram.domain.user.entity.UserSearchHistory;
-import kr.co.shineware.nlp.komoran.constant.DEFAULT_MODEL;
-import kr.co.shineware.nlp.komoran.core.Komoran;
-import kr.co.shineware.nlp.komoran.model.KomoranResult;
-import kr.co.shineware.nlp.komoran.model.Token;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,8 +25,10 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -51,29 +44,23 @@ public class SearchService {
     @Autowired
     @Lazy
     private SearchService self;
-    
+
     @Value("${gms.api.base-url}")
     private String gmsApiBaseUrl;
     @Value("${gms.api.llm-base-url}")
     private String gmsLlmBaseUrl;
     @Value("${gms.api.key}")
     private String gmsApiKey;
-    
+
     private static final String MODEL_NAME = "text-embedding-3-small";
     private static final String LLM_MODEL_NAME = "gpt-4o-mini";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final Komoran komoran = new Komoran(DEFAULT_MODEL.FULL);
 
     @Transactional(readOnly = true)
     public List<ArticleDto> searchArticles(Long userId, String query, int limit, int page) {
-        // 1. Save Search History (Only for the first page)
         if (page == 0) {
             self.saveSearchHistory(userId, query);
         }
-
-        // 2. Perform Search (Cached)
-        // Authenticated search uses strict threshold (0.8) to limit results to relevant ones
-        // Use 'self' to invoke via proxy for caching
         return self.getCachedSearchResults(query, limit, page, 0.80);
     }
 
@@ -82,209 +69,217 @@ public class SearchService {
         long totalStartTime = System.currentTimeMillis();
         log.info("[Search] Original Query: {}, Page: {}", query, page);
 
-        // 1. Try Local Analysis (Rule-based)
-        IntentAnalysisResponse intent = analyzeIntentLocal(query);
+        // 1. LLM Analysis
+        SearchAnalysisResult analysis = analyzeQueryWithLLM(query);
+        log.info("[Search] LLM Analysis Result: {}", analysis);
 
-        if (intent == null) {
-            intent = new IntentAnalysisResponse(query, null, 7, new ArrayList<>()); // Default 7 days if analysis fails
-            log.info("[Search] Local Analysis Failed or Skipped. Using raw query with default 7 days.");
-        } else {
-            // Default to 7 days if no date specified
-            if (intent.getDateRange() == 0) {
-                intent.setDateRange(7);
+        // 2. Prepare for DB Query
+        final LocalDateTime startDate = (analysis.getDateRange() > 0)
+                ? LocalDateTime.now().minusDays(analysis.getDateRange())
+                : LocalDateTime.now().minusDays(7);
+
+        List<Long> categoryIds = new ArrayList<>();
+        if (analysis.getCategories() != null) {
+            for (String code : analysis.getCategories()) {
+                newsCategoryRepository.findByName(code).ifPresent(category -> categoryIds.add(category.getId()));
             }
-            log.info("[Search] Local Analysis Result: Query={}, Category={}, DateRange={}", 
-                    intent.getQuery(), intent.getCategory(), intent.getDateRange());
         }
 
-        // Case 2: Vector Search (Keywords exist OR Category not found)
-        String searchKeywords = (intent.getQuery() != null && !intent.getQuery().isBlank()) 
-                ? intent.getQuery() 
-                : query;
+        List<String> keywordsForSearch = (analysis.getSearchKeywords() != null && !analysis.getSearchKeywords().isEmpty())
+            ? analysis.getSearchKeywords()
+            : List.of(query);
+
+        // 여러 키워드 임베딩을 가져와 평균을 계산
+        List<List<Double>> embeddings = keywordsForSearch.stream()
+                                            .map(self::getCachedEmbedding)
+                                            .collect(Collectors.toList());
+
+        List<Double> averageEmbedding = calculateAverageEmbedding(embeddings);
+        String embeddingString = toPgVectorLiteral(averageEmbedding);
+        // --- [로직 수정 끝] ---
+
+        int candidateLimit = 800;
         
-        long embeddingStartTime = System.currentTimeMillis();
-        List<Double> embedding = self.getCachedEmbedding(searchKeywords);
-        long embeddingEndTime = System.currentTimeMillis();
-        log.info("[Search] Embedding API took {} ms", (embeddingEndTime - embeddingStartTime));
-
-        String embeddingString = toPgVectorLiteral(embedding); 
-
-        // 3. LLM Category Analysis
-        long llmStartTime = System.currentTimeMillis();
-        List<Long> categoryIds = analyzeCategoryWithLLM(query);
-        long llmEndTime = System.currentTimeMillis();
-        log.info("[Search] LLM Category Analysis took {} ms", (llmEndTime - llmStartTime));
-
-        LocalDateTime startDate = null;
-        if (intent.getDateRange() > 0) {
-            startDate = LocalDateTime.now().minusDays(intent.getDateRange());
-        }
-
-        // Optimization: Single DB Query with MAX threshold and large limit
-        int candidateLimit = 800; 
-        
-        long dbStartTime = System.currentTimeMillis();
-        List<Article> articles = articleRepository.findCandidatesByEmbedding(
+        // DB 쿼리는 단 한번만 호출
+        List<Article> candidateArticles = articleRepository.findCandidatesByEmbedding(
                 embeddingString, candidateLimit, categoryIds, startDate, threshold);
-        long dbEndTime = System.currentTimeMillis();
-        log.info("[Search] DB Query took {} ms", (dbEndTime - dbStartTime));
+        log.info("[Search] Found {} candidate articles from vector search.", candidateArticles.size());
 
-        List<String> filterKeywords = (intent.getKeywords() != null && !intent.getKeywords().isEmpty())
-                ? intent.getKeywords()
-                : List.of(query.split("\\s+"));
+        // 4. 키워드 필터링은 'primary_keywords'를 사용
+        List<String> keywordsForFilter = (analysis.getPrimaryKeywords() != null && !analysis.getPrimaryKeywords().isEmpty())
+            ? analysis.getPrimaryKeywords()
+            : keywordsForSearch; // primary_keywords가 없으면 search_keywords를 대신 사용 (Fallback)
 
-        List<ArticleDto> result = articles.stream()
+        List<Article> filteredArticles = candidateArticles.stream()
                 .filter(article -> {
-                    String title = article.getTitle() != null ? article.getTitle() : "";
-                    String description = article.getDescription() != null ? article.getDescription() : "";
-                    // Check if ANY of the keywords are present
-                    return filterKeywords.stream().anyMatch(keyword -> 
-                        title.contains(keyword) || description.contains(keyword)
-                    );
+                    String title = article.getTitle() != null ? article.getTitle().toLowerCase() : "";
+                    String description = article.getDescription() != null ? article.getDescription().toLowerCase() : "";
+                    // 'keywordsForFilter' 중 하나라도 포함되면 통과
+                    return keywordsForFilter.stream()
+                            .anyMatch(keyword ->
+                                    title.contains(keyword.toLowerCase()) || description.contains(keyword.toLowerCase())
+                            );
                 })
-                .sorted((a1, a2) -> a2.getPublishedAt().compareTo(a1.getPublishedAt())) // Sort by Date DESC
-                .skip((long) page * limit) // Pagination in memory
-                .limit(limit)
+                .collect(Collectors.toList());
+        log.info("[Search] {} articles remaining after PRIMARY keyword filtering.", filteredArticles.size());
+
+        // 5. 최종 정렬 및 메모리 기반 페이징
+        List<Article> sortedArticles = filteredArticles.stream()
+                .sorted(Comparator.comparing(Article::getPublishedAt).reversed()) // 최신순으로 정렬
+                .collect(Collectors.toList());
+
+        int startIdx = page * limit;
+        if (startIdx >= sortedArticles.size()) {
+            return new ArrayList<>();
+        }
+        int endIdx = Math.min(startIdx + limit, sortedArticles.size());
+
+        List<ArticleDto> result = sortedArticles.subList(startIdx, endIdx).stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
-        
+
         long totalEndTime = System.currentTimeMillis();
         log.info("[Search] Total Service Execution took {} ms, query : {}", (totalEndTime - totalStartTime), query);
 
         return result;
     }
 
-    private IntentAnalysisResponse analyzeIntentLocal(String query) {
-        String category = null;
-        int dateRange = 0;
-        List<String> cleanKeywords = new ArrayList<>();
-        boolean komoranSuccess = false;
+    // 평균 임베딩을 계산하는 유틸리티 메서드 (클래스 내부에 추가)
+    private List<Double> calculateAverageEmbedding(List<List<Double>> embeddings) {
+        if (embeddings == null || embeddings.isEmpty()) {
+            return new ArrayList<>();
+        }
+        // 모든 벡터가 동일한 차원을 가지고 있다고 가정 (e.g., 1536)
+        int dimensions = embeddings.get(0).size();
+        List<Double> averageVector = new ArrayList<>(Collections.nCopies(dimensions, 0.0));
 
-        // 1. Komoran Analysis
+        for (List<Double> vector : embeddings) {
+            for (int i = 0; i < dimensions; i++) {
+                averageVector.set(i, averageVector.get(i) + vector.get(i));
+            }
+        }
+
+        for (int i = 0; i < dimensions; i++) {
+            averageVector.set(i, averageVector.get(i) / embeddings.size());
+        }
+        return averageVector;
+    }
+
+    // Article ID 기준으로 중복을 제거하기 위한 유틸리티 메서드
+    public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+        Set<Object> seen = ConcurrentHashMap.newKeySet();
+        return t -> seen.add(keyExtractor.apply(t));
+    }
+
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    private static class SearchAnalysisResult {
+        // @JsonProperty는 LLM이 보내주는 JSON의 key와 필드명을 매핑합니다.
+        @com.fasterxml.jackson.annotation.JsonProperty("primary_keywords")
+        private List<String> primaryKeywords;
+
+        @com.fasterxml.jackson.annotation.JsonProperty("search_keywords")
+        private List<String> searchKeywords;
+
+        private int dateRange;
+        private List<String> categories;
+    }
+
+    private SearchAnalysisResult analyzeQueryWithLLM(String query) {
+        if (query == null || query.isBlank()) {
+            return new SearchAnalysisResult(new ArrayList<>(), new ArrayList<>(), 7, new ArrayList<>());
+        }
+
+        String prompt = """
+        You are an expert search query pre-processor for a news article system.
+        Your task is to analyze a user's natural language query and convert it into a structured JSON object.
+
+        Analyze the query and extract the following information in JSON format:
+
+        1.  'primary_keywords': 1 or 2 word of essential, core nouns/entities from the original query. These are "must-include" keywords for final filtering.
+        2.  'search_keywords': A list of at least 3 semantically rich keywords for vector embedding search. This list MUST include all 'primary_keywords' and also expand with synonyms and related concepts.
+        3.  'dateRange': An integer representing the lookback period in days. (Rules are the same as before).
+        4.  'categories': A list of up to 3 relevant category codes. (List is the same as before).
+
+        Categories List:
+        TOP, POLITICS, ECONOMY, BUSINESS, SOCIETY, LOCAL, WORLD, NORTH_KOREA, CULTURE_LIFE, ENTERTAINMENT, SPORTS, WEATHER, SCIENCE_ENV, HEALTH, OPINION, PEOPLE
+
+        ---
+        Here are some high-quality examples:
+
+        Query: "페이커 뉴스"
+        JSON Output:
+        {
+        "primary_keywords": ["페이커"],
+        "search_keywords": ["페이커", "e스포츠", "리그 오브 레전드", "선수 소식"],
+        "dateRange": 7,
+        "categories": ["SPORTS", "PEOPLE"]
+        }
+
+        Query: "삼성전자 최근 주가 흐름 알려줘"
+        JSON Output:
+        {
+        "primary_keywords": ["삼성전자"],
+        "search_keywords": ["삼성전자", "주가", "주식", "시세"],
+        "dateRange": 7,
+        "categories": ["ECONOMY", "BUSINESS"]
+        }
+
+        Query: "오늘 가장 핫한 뉴스가 뭐야?"
+        JSON Output:
+        {
+        "primary_keywords": ["헤드라인", "속보"],
+        "search_keywords": ["주요 뉴스", "헤드라인", "속보", "오늘의 이슈"],
+        "dateRange": 1,
+        "categories": ["TOP", "SOCIETY"]
+        }
+        ---
+
+        Now, analyze the following query and provide the JSON output.
+
+        Query: 
+        """ + query;
+        
+        String url = gmsApiBaseUrl.endsWith("/")
+                ? gmsApiBaseUrl + "chat/completions"
+                : gmsApiBaseUrl + "/chat/completions";
+
         try {
-            KomoranResult analyzeResultList = komoran.analyze(query);
-            List<Token> tokenList = analyzeResultList.getTokenList();
-            komoranSuccess = true;
-            
-            log.info("[Search] Komoran Tokens: {}", tokenList.stream()
-                    .map(t -> t.getMorph() + "(" + t.getPos() + ")")
-                    .collect(Collectors.joining(", ")));
-            
-            StringBuilder currentChunk = new StringBuilder();
+            String requestBody = OBJECT_MAPPER.writeValueAsString(java.util.Map.of(
+                    "model", LLM_MODEL_NAME,
+                    "messages", List.of(
+                            java.util.Map.of("role", "developer", "content", "You are a helpful assistant that analyzes news search queries and returns JSON."),
+                            java.util.Map.of("role", "user", "content", prompt)
+                    ),
+                    "response_format", java.util.Map.of("type", "json_object")
+            ));
 
-            for (Token token : tokenList) {
-                String morph = token.getMorph();
-                String pos = token.getPos();
-                int matchedDate = matchDateRange(morph);
-                
-                if (matchedDate != 0) {
-                    flushChunk(cleanKeywords, currentChunk); // 이전 청크 저장
-                    if (dateRange == 0) dateRange = matchedDate;
-                    continue;
-                }
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(gmsApiKey);
 
-                // 2. 불용어 처리 (임베딩에서 제외)
-                if (isStopWord(morph)) {
-                    flushChunk(cleanKeywords, currentChunk); // 이전 청크 저장
-                    continue;
-                }
+            HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
+            RestTemplate restTemplate = new RestTemplate();
 
-                // 3. 검색어 병합 (Chunking)
-                if (isSearchablePos(pos)) {
-                    currentChunk.append(morph); // 공백 없이 병합 (예: 기아+타이거즈 -> 기아타이거즈)
-                } else {
-                    flushChunk(cleanKeywords, currentChunk); // 조사/어미 등 만나면 청크 종료
-                }
+            ResponseEntity<com.fasterxml.jackson.databind.JsonNode> response = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, com.fasterxml.jackson.databind.JsonNode.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                String content = response.getBody().path("choices").get(0).path("message").path("content").asText();
+                log.info("[Search] LLM Response: {}", content);
+                return OBJECT_MAPPER.readValue(content, SearchAnalysisResult.class);
             }
-            flushChunk(cleanKeywords, currentChunk); // 남은 청크 저장
-
         } catch (Exception e) {
-            log.error("[Search] Komoran Analysis Failed", e);
+            log.error("[Search] LLM Analysis Failed", e);
         }
 
-        // 2. Fallback: Simple Space Splitting (only if Komoran failed OR resulted in empty keywords)
-        // Komoran이 성공했더라도 모든 토큰이 필터링되어 키워드가 없는 경우(예: 신조어만 있거나 불용어만 있는 경우)
-        // 단순 띄어쓰기 기준으로 다시 시도하여 불용어만 제거하고 나머지는 살린다.
-        if (!komoranSuccess || cleanKeywords.isEmpty()) {
-            cleanKeywords.clear(); // 혹시 모를 잔여 데이터 제거
-            
-            String[] words = query.split("\\s+");
-            for (String word : words) {
-                int matchedDate = matchDateRange(word);
-                
-                if (matchedDate != 0) {
-                    if (dateRange == 0) dateRange = matchedDate;
-                } else if (!isStopWord(word)) {
-                    cleanKeywords.add(word);
-                }
-            }
-        }
-        
-        String finalQuery = cleanKeywords.isEmpty() ? query : String.join(" ", cleanKeywords);
-        if (finalQuery.isBlank()) finalQuery = query;
-        
-        return new IntentAnalysisResponse(finalQuery, category, dateRange, cleanKeywords);
-    }
-
-    private void flushChunk(List<String> keywords, StringBuilder chunk) {
-        if (chunk.length() > 0) {
-            String keyword = chunk.toString();
-            keywords.add(keyword);
-            log.debug("[Search] Chunk added: {}", keyword);
-            chunk.setLength(0); // 버퍼 초기화
-        }
-    }
-
-    private boolean isSearchablePos(String pos) {
-        // NNG(일반명사) 포함: NNP(고유명사), SL(외국어), SH(한자), SN(숫자)
-        // 연속된 명사를 병합하기 위해 NNG도 포함시킴 (단, 불용어 필터링 필수)
-        // NA(분석불능), NF(추정명사), NV(추정동사), XR(어근) 추가하여 신조어/미등록어 대응
-        return "NNG".equals(pos) || "NNP".equals(pos) || "SL".equals(pos) || "SH".equals(pos) || "SN".equals(pos) ||
-               "NA".equals(pos) || "NF".equals(pos) || "NV".equals(pos) || "XR".equals(pos);
-    }
-
-    private boolean isStopWord(String word) {
-        return word.equals("뉴스") || word.equals("기사") || word.equals("관련") || word.equals("소식") || 
-               word.equals("내용") || word.equals("대해") || word.equals("관하") || word.equals("궁금") || 
-               word.equals("알려") || word.equals("주") || word.equals("좀") || word.equals("어떻") || 
-               word.equals("무엇") || word.equals("어") || word.equals("하") || word.equals("되") || 
-               word.equals("이") || word.equals("가") || word.equals("을") || word.equals("를") || 
-               word.equals("은") || word.equals("는") || word.equals("의") || word.equals("에") || 
-               word.equals("에서") || word.equals("로") || word.equals("으로") || word.equals("와") || 
-               word.equals("과") || word.equals("도") || word.equals("만") || word.equals("나") || 
-               word.equals("이나") || word.equals("부터") || word.equals("까지") || word.equals("필요") ||
-               word.equals("및") || word.equals("또는") || word.equals("혹은") || word.equals("그리고") ||
-               word.equals("그러나") || word.equals("하지만") || word.equals("그래서") || word.equals("따라서") ||
-               word.equals("때문에") || word.equals("인하여") || word.equals("위하") || word.equals("따르") ||
-               word.equals("보이") || word.equals("보") || word.equals("드리") || word.equals("시키") ||
-               word.equals("만들") || word.equals("가지") || word.equals("갖") || word.equals("그렇") ||
-               word.equals("저렇") || word.equals("이렇") || word.equals("무슨") || word.equals("어느") ||
-               word.equals("어떤") || word.equals("누구") || word.equals("언제") || word.equals("어디") ||
-               word.equals("왜") || word.equals("어떻게") || word.equals("보도") || word.equals("속보") ||
-               word.equals("결과") || word.equals("발표") || word.equals("예정") || word.equals("계획") ||
-               word.equals("진행") || word.equals("상황") || word.equals("상태") || word.equals("문제") ||
-               word.equals("해결") || word.equals("방안") || word.equals("대책") || word.equals("이유") ||
-               word.equals("원인") || word.equals("배경") || word.equals("전망") || word.equals("분석") ||
-               word.equals("평가") || word.equals("의견") || word.equals("주장") || word.equals("생각") ||
-               word.equals("입장") || word.equals("반응") || word.equals("논란") || word.equals("의혹") ||
-               word.equals("사실") || word.equals("확인") || word.equals("공개") || word.equals("등등") ||
-               word.equals("것") || word.equals("수") || word.equals("등");
-    }
-
-    private int matchDateRange(String word) {
-        if (word.equals("오늘") || word.equals("금일") || word.equals("하루")) return 1;
-        if (word.equals("어제") || word.equals("작일")) return 2;
-        if (word.equals("이번주") || word.equals("주간") || word.equals("요즘") || word.equals("최근") || 
-            word.equals("최신") || word.equals("일주일")) return 7;
-        if (word.equals("이번달") || word.equals("월간") || word.equals("한달")) return 30;
-        if (word.equals("분기") || word.equals("3개월")) return 90;
-        if (word.equals("상반기") || word.equals("하반기") || word.equals("반기")) return 180;
-        if (word.equals("올해") || word.equals("연간") || word.equals("일년")) return 365;
-        if (word.equals("작년") || word.equals("지난해")) return 730;
-        return 0;
+        List<String> fallbackKeywords = Arrays.asList(query.split("\\s+"));
+        return new SearchAnalysisResult(fallbackKeywords, fallbackKeywords, 7, new ArrayList<>());
     }
 
     private String toPgVectorLiteral(List<Double> embedding){
+        if (embedding == null) return "[]";
         String inner = embedding.stream()
                 .map(d -> String.format(java.util.Locale.US, "%.6f", d))
                 .collect(Collectors.joining(","));
@@ -300,147 +295,57 @@ public class SearchService {
         String url = gmsApiBaseUrl.endsWith("/")
                 ? gmsApiBaseUrl + "embeddings"
                 : gmsApiBaseUrl + "/embeddings";
-
-        String escapedInput;
-        try {
-            escapedInput = OBJECT_MAPPER.writeValueAsString(inputText);
-        } catch (Exception e) {
-            throw new RuntimeException("입력 텍스트 JSON 직렬화 실패", e);
-        }
-
-        String rawJson = String.format(
-                "{\"model\":\"%s\",\"input\":%s}",
-                MODEL_NAME,
-                escapedInput
-        );
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        headers.setBearerAuth(gmsApiKey);
-
-        HttpEntity<String> entity = new HttpEntity<>(rawJson, headers);
-
-        RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<EmbeddingResponse> response;
-
-        try {
-            response = restTemplate.exchange(url, HttpMethod.POST, entity, EmbeddingResponse.class);
-        } catch (HttpClientErrorException e) {
-            log.error("[Embedding] GMS 4xx 에러. status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("GMS/OpenAI 4xx 에러: " + e.getStatusCode(), e);
-        } catch (Exception e) {
-            throw new RuntimeException("GMS 통신 실패", e);
-        }
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            log.error("[Embedding] API 응답 실패, response={}", response.getStatusCode());
-            throw new RuntimeException("Embedding API 실패, status=" + response.getStatusCode());
-        }
-
-        EmbeddingResponse body = response.getBody();
-        if (body == null || body.getData() == null || body.getData().isEmpty()) {
-            log.error("[Embedding] API 응답 body 없음");
-            throw new RuntimeException("Embedding API 응답 비어있음");
-        }
         
-        return body.getData().get(0).getEmbedding();
-    }
-
-    private List<Long> analyzeCategoryWithLLM(String query) {
-        log.info("[Prompt Search] query={}", query);
-        if (query == null || query.isBlank()) {
-            return new ArrayList<>();
-        }
-
-        String prompt = "Analyze the following search query and identify at least the top 3 most relevant categories from the list below. " +
-                "Return ONLY the category codes separated by commas (e.g., POLITICS, ECONOMY, WORLD). " +
-                "Categories:\n" +
-                "TOP (속보, 최신 기사, 헤드라인, 전체 기사 스트림)\n" +
-                "POLITICS (정치 관련 기사)\n" +
-                "ECONOMY (경제 관련 기사)\n" +
-                "BUSINESS (기업, 산업, 증권, 부동산, 마켓 관련 기사)\n" +
-                "SOCIETY (사회 일반 기사)\n" +
-                "LOCAL (지역, 전국 이슈)\n" +
-                "WORLD (국제, 세계 뉴스)\n" +
-                "NORTH_KOREA (북한 관련 기사)\n" +
-                "CULTURE_LIFE (문화, 생활, 라이프 기사)\n" +
-                "ENTERTAINMENT (연예, 예능, 게임 등)\n" +
-                "SPORTS (스포츠 기사)\n" +
-                "WEATHER (날씨 기사)\n" +
-                "SCIENCE_ENV (과학, 기술, 환경 기사)\n" +
-                "HEALTH (건강, 의료 기사)\n" +
-                "OPINION (사설, 칼럼, 오피니언)\n" +
-                "PEOPLE (사람들, 인물 기사)\n" +
-                "Query: " + query;
-
-        String url = gmsApiBaseUrl.endsWith("/")
-                ? gmsApiBaseUrl + "chat/completions"
-                : gmsApiBaseUrl + "/chat/completions";
-
         try {
-            String requestBody = OBJECT_MAPPER.writeValueAsString(java.util.Map.of(
-                    "model", LLM_MODEL_NAME,
-                    "messages", List.of(
-                            java.util.Map.of("role", "developer", "content", "You are a helpful assistant that categorizes news queries."),
-                            java.util.Map.of("role", "user", "content", prompt)
-                    )
+            String requestBody = OBJECT_MAPPER.writeValueAsString(Map.of(
+                "model", MODEL_NAME,
+                "input", inputText
             ));
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
             headers.setBearerAuth(gmsApiKey);
 
             HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
             RestTemplate restTemplate = new RestTemplate();
-            
-            ResponseEntity<com.fasterxml.jackson.databind.JsonNode> response = restTemplate.exchange(
-                    url, HttpMethod.POST, entity, com.fasterxml.jackson.databind.JsonNode.class);
+            ResponseEntity<EmbeddingResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, EmbeddingResponse.class);
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String content = response.getBody().path("choices").get(0).path("message").path("content").asText();
-                log.info("[Search] LLM Response: {}", content);
-                
-                List<Long> categoryIds = new ArrayList<>();
-                String[] codes = content.split(",");
-                for (String code : codes) {
-                    String cleanCode = code.trim().toUpperCase();
-                    if (cleanCode.contains(" ")) {
-                        cleanCode = cleanCode.split("\\s+")[0];
-                    }
-                    
-                    String finalCode = cleanCode;
-                    newsCategoryRepository.findByName(finalCode).ifPresent(category -> categoryIds.add(category.getId()));
+                EmbeddingResponse body = response.getBody();
+                if (body.getData() != null && !body.getData().isEmpty()) {
+                    return body.getData().get(0).getEmbedding();
                 }
-                return categoryIds;
             }
+            log.error("[Embedding] API 응답 실패 또는 데이터 없음, status={}", response.getStatusCode());
+            throw new RuntimeException("Embedding API 응답 데이터 비어있음");
+
+        } catch (HttpClientErrorException e) {
+            log.error("[Embedding] GMS 4xx 에러. status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("GMS/OpenAI 4xx 에러: " + e.getStatusCode(), e);
         } catch (Exception e) {
-            log.error("[Search] LLM Category Analysis Failed", e);
+            log.error("[Embedding] GMS 통신 또는 직렬화 실패", e);
+            throw new RuntimeException("Embedding API 호출 실패", e);
         }
-        
-        return new ArrayList<>();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveSearchHistory(Long userId, String query) {
         try {
-            // 1. Try to update existing history timestamp to move it to top
             int updated = userSearchHistoryRepository.updateCreatedAtByUserIdAndQuery(userId, query);
-
-            // 2. If not exists, save new history
             if (updated == 0) {
                 User user = userRepository.getReferenceById(userId);
                 UserSearchHistory history = UserSearchHistory.builder()
                         .user(user)
                         .query(query)
                         .build();
-
                 userSearchHistoryRepository.save(history);
             }
         } catch (Exception e) {
-            log.error("[Serach History] Failed to save search history for user={}", userId, e);
+            log.error("[Search History] Failed to save search history for user={}", userId, e);
         }
     }
+
 
     private ArticleDto convertToDto(Article article) {
         return ArticleDto.builder()
