@@ -66,8 +66,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
             "WHERE (:categoryIds IS NULL OR category_id IN (:categoryIds)) " +
             "AND published_at >= cast(:startDate as timestamp) " +
             "AND (embedding <=> cast(:embedding as vector)) < :threshold " +
-            "ORDER BY embedding <=> cast(:embedding as vector) " +
-            "LIMIT :limit", nativeQuery = true)
+            "ORDER BY embedding <=> cast(:embedding as vector) ", nativeQuery = true)
     List<Article> findCandidatesByEmbedding(
             @Param("embedding") String embedding,
             @Param("limit") int limit,
