@@ -52,7 +52,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
     @Query(value = "SELECT id, title, content, description, url, thumbnail_url, author, published_at, created_at, updated_at, feed_id, category_id, sources_id, NULL as embedding " +
             "FROM articles " +
-            "WHERE (cast(:startDate as timestamp) IS NOT NULL AND published_at >= (:startDate AT TIME ZONE 'Asia/Seoul')) " +
+            "WHERE published_at >= :startDate " +
             "ORDER BY embedding <=> cast(:embedding as vector) " +
             "LIMIT :limit", nativeQuery = true)
     List<Article> findByEmbeddingSimilarity(
@@ -60,7 +60,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
             @Param("limit") int limit,
             @Param("startDate") LocalDateTime startDate
     );
-
+    
     @Query(value = "SELECT id, title, content, description, url, thumbnail_url, author, published_at, created_at, updated_at, feed_id, category_id, sources_id, NULL as embedding " +
             "FROM articles " +
             "WHERE (:categoryIds IS NULL OR category_id IN (:categoryIds)) " +
