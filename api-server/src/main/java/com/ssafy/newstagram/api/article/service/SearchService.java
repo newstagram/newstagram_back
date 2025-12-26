@@ -52,7 +52,7 @@ public class SearchService {
     @Value("${gms.api.key}")
     private String gmsApiKey;
 
-    private static final String MODEL_NAME = "text-embedding-3-small";
+    private static final String MODEL_NAME = "text-embedding-3-large";
     private static final String LLM_MODEL_NAME = "gpt-4o-mini";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
