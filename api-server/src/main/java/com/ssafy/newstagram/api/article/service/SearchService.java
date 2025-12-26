@@ -299,7 +299,8 @@ public class SearchService {
         try {
             String requestBody = OBJECT_MAPPER.writeValueAsString(Map.of(
                 "model", MODEL_NAME,
-                "input", inputText
+                "input", inputText,
+                "dimensions",1536
             ));
 
             HttpHeaders headers = new HttpHeaders();
