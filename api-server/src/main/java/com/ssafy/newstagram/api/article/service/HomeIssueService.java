@@ -21,6 +21,7 @@ public class HomeIssueService {
     public List<ArticleDto> findByEmbeddingSimilarity(String embedding, int limit, LocalDateTime startDate) {
         List<Article> articles = articleRepository.findByEmbeddingSimilarity(embedding, limit, startDate);
         log.info("[HomeIssueService] startDate:{}", startDate);
+        log.info("[HomeIssueService] articles.size:{}", articles.size());
         // Article 리스트를 ArticleDto 리스트로 변환
         return articles.stream()
                 .map(this::toArticleDto)  // toArticleDto 메소드 사용
