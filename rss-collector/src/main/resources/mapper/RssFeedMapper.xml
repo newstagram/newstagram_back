@@ -3,9 +3,9 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.ssafy.newstagram.rss.mapper.RssFeedMapper">
+<mapper namespace="com.newstagram.rss.mapper.RssFeedMapper">
 
-    <resultMap id="RssFeedResultMap" type="com.ssafy.newstagram.rss.vo.RssFeed">
+    <resultMap id="RssFeedResultMap" type="com.newstagram.rss.vo.RssFeed">
         <id property="id" column="id"/>
         <result property="name" column="name"/>
         <result property="rssUrl" column="rss_url"/>
@@ -39,7 +39,7 @@
     </select>
 
     <select id="findById" parameterType="long"
-            resultType="com.ssafy.newstagram.rss.vo.RssFeed">
+            resultType="com.newstagram.rss.vo.RssFeed">
         SELECT
             id,
             name,

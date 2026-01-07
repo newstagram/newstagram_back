@@ -1,0 +1,12 @@
+package com.newstagram.api.logging.model.dto;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+public class SurveySubmitRequestDto {
+    private List<Long> categoryIds;
+}
