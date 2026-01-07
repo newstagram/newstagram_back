@@ -6,7 +6,7 @@ plugins {
 
 // 모든 프로젝트 공통 설정
 allprojects {
-	group = 'com.ssafy'
+	group = 'com'
 	version = '0.0.1-SNAPSHOT'
 	
 	repositories {
