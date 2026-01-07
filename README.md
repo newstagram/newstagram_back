@@ -220,7 +220,7 @@ newstagram_back/
 ├── api-server/           # 메인 API 서버
 │   ├── src/
 │   │   └── main/
-│   │       ├── java/com/ssafy/newstagram/api/...
+│   │       ├── java/com/newstagram/api/...
 │   │       └── resources/
 │   │           ├── application.properties
 │   │           ├── application-dev.properties
@@ -230,7 +230,7 @@ newstagram_back/
 ├── logging-server/       # 로깅 서버
 │   ├── src/
 │   │   └── main/
-│   │       ├── java/com/ssafy/newstagram/logging/...
+│   │       ├── java/com/newstagram/logging/...
 │   │       └── resources/
 │   │           ├── application.properties
 │   │           ├── application-dev.properties
@@ -240,7 +240,7 @@ newstagram_back/
 ├── rss-collector/        # RSS 수집 서버
 │   ├── src/
 │   │   └── main/
-│   │       ├── java/com/ssafy/newstagram/rss/...
+│   │       ├── java/com/newstagram/rss/...
 │   │       └── resources/
 │   │           ├── application.properties
 │   │           ├── application-dev.properties
@@ -250,7 +250,7 @@ newstagram_back/
 ├── newstagram-domain/    # 공통 도메인 모듈
 │   ├── src/
 │   │   └── main/
-│   │       └── java/com/ssafy/newstagram/domain/...
+│   │       └── java/com/newstagram/domain/...
 │   └── build.gradle
 ├── docker-compose.yml
 ├── .env
@@ -300,7 +300,7 @@ cd newstagram_back
 ## PostgreSQL Configuration
 POSTGRES_DB=newstagram
 POSTGRES_USER=newstagram
-POSTGRES_PASSWORD=ssafy
+POSTGRES_PASSWORD={설정한 pw}
 POSTGRES_PORT=5432
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/newstagram?currentSchema=public
 
@@ -360,7 +360,7 @@ SOLAPI_FROM_NUMBER=01033295596
 - Environment variables 필드에 아래 값을 복사하여 붙여넣습니다.
     
     ```java
-    POSTGRES_DB=newstagram;POSTGRES_USER=newstagram;POSTGRES_PASSWORD=ssafy;POSTGRES_PORT=5432;SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/newstagram;REDIS_PASSWORD=;REDIS_PORT=6379;JWT_SECRET=KJWoxj9BDq5NruIHfdFmon5L6vUYvpkHNrlIk1hqQzF
+    POSTGRES_DB=newstagram;POSTGRES_USER=newstagram;POSTGRES_PASSWORD={설정한 pw};POSTGRES_PORT=5432;SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/newstagram;REDIS_PASSWORD=;REDIS_PORT=6379;JWT_SECRET=KJWoxj9BDq5NruIHfdFmon5L6vUYvpkHNrlIk1hqQzF
     ```
     
 
@@ -411,7 +411,7 @@ CLI 사용
 - **Port**: 5432
 - **Database**: newstagram
 - **Username**: newstagram
-- **Password**: ssafy (또는 .env 파일에 설정한 값)
+- **Password**: (.env 파일에 설정한 값)
 
 ### Redis
 

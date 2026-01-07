@@ -3,9 +3,9 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.ssafy.newstagram.rss.mapper.ArticleMapper">
+<mapper namespace="com.newstagram.rss.mapper.ArticleMapper">
 
-    <insert id="insertIgnoreOnConflict" parameterType="com.ssafy.newstagram.rss.vo.Article">
+    <insert id="insertIgnoreOnConflict" parameterType="com.newstagram.rss.vo.Article">
         INSERT INTO articles
         (title, content, description, url, thumbnail_url,
          author, published_at, feed_id, category_id, sources_id, created_at, updated_at)
@@ -17,7 +17,7 @@
 
     <select id="findArticlesWithoutEmbeddingBySource"
             parameterType="long"
-            resultType="com.ssafy.newstagram.rss.vo.Article">
+            resultType="com.newstagram.rss.vo.Article">
         SELECT
             id,
             title,
@@ -54,7 +54,7 @@
     </select>
 
     <!-- 모든 기사 + embedding literal 조회 -->
-    <select id="findAllWithEmbeddingLiteral" resultType="com.ssafy.newstagram.rss.vo.Article">
+    <select id="findAllWithEmbeddingLiteral" resultType="com.newstagram.rss.vo.Article">
         SELECT
         id,
         title,
@@ -75,7 +75,7 @@
     </select>
 
     <!-- 시작 시간, 끝 시간으로 기사 조회 -->
-    <select id="findArticlesByPeriod" resultType="com.ssafy.newstagram.rss.vo.Article">
+    <select id="findArticlesByPeriod" resultType="com.newstagram.rss.vo.Article">
         SELECT
         id,
         title,
