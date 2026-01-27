@@ -300,7 +300,7 @@ cd newstagram_back
 ## PostgreSQL Configuration
 POSTGRES_DB=newstagram
 POSTGRES_USER=newstagram
-POSTGRES_PASSWORD=ssafy1234
+POSTGRES_PASSWORD=1234
 POSTGRES_PORT=5432
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/newstagram?currentSchema=public
 
@@ -312,7 +312,7 @@ REDIS_PORT=6379
 KAFKA_PORT=9094
 
 # JWT Secret (보안을 위해 고유한 값으로 변경 권장)
-JWT_SECRET=k6MJZ2htllagVh4APzieg7TeXUDrWRppnmBigiJ3oz2
+JWT_SECRET=
 
 # GMS AI API 키 
 GMS_BASE_URL=
@@ -334,9 +334,9 @@ BASE_URL=http://localhost:8080
 FRONT_URL=http://localhost:5173
 
 # SOLAPI
-SOLAPI_KEY=askdkejf
-SOLAPI_SECRET=aswerqfxz
-SOLAPI_FROM_NUMBER=01012345678
+SOLAPI_KEY=
+SOLAPI_SECRET=
+SOLAPI_FROM_NUMBER=
 ```
 
 ### **IntelliJ IDEA 환경**
